@@ -86,6 +86,17 @@ export default function ArapyMasterConsole() {
           </div>
 
           <div className="admin-header-right">
+            <a
+              href="https://arapysl.web.app/#master"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="arapy-switch-btn"
+              style={{ background: 'linear-gradient(135deg, #102a1c, #163825)', color: '#7ee2a8', borderColor: '#7ee2a8', textDecoration: 'none' }}
+              title="Abrir tu Consola Central ARAPY en arapysl.web.app/#master"
+            >
+              <ExternalLink size={14} />
+              <span>Abrir arapysl.web.app/#master</span>
+            </a>
             <button
               type="button"
               className="arapy-switch-btn"
