@@ -21,7 +21,8 @@ import {
   Receipt,
   Wallet,
   PieChart,
-  CreditCard
+  CreditCard,
+  Share2
 } from 'lucide-react';
 import { useSaaS } from '../../context/SaaSContext';
 import { THEME_PRESETS } from '../../data/seedTemplates';
@@ -519,6 +520,28 @@ export default function OwnerAdminPanel() {
           </div>
 
           <div className="admin-header-right">
+            <button
+              type="button"
+              className="share-store-admin-btn"
+              onClick={() => setActiveModal('share')}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                background: 'linear-gradient(135deg, #d67479, #cfa8f5)',
+                color: '#1a1415',
+                border: 'none',
+                fontWeight: 700,
+                fontSize: 12.5,
+                padding: '6px 14px',
+                borderRadius: 999,
+                cursor: 'pointer'
+              }}
+              title="Obtener el link para compartir de esta tienda"
+            >
+              <Share2 size={14} />
+              <span>🔗 Link para Compartir</span>
+            </button>
             <button
               type="button"
               className={`live-edit-toggle-btn ${liveEditMode ? 'active' : ''}`}

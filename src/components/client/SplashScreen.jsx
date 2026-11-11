@@ -1,5 +1,14 @@
 import React from 'react';
-import { ChevronRight, ChevronDown, Sparkles, MapPin, Phone, Clock } from 'lucide-react';
+import {
+  ChevronRight,
+  ChevronDown,
+  Sparkles,
+  MapPin,
+  Phone,
+  Clock,
+  Share2,
+  Menu
+} from 'lucide-react';
 import { useSaaS } from '../../context/SaaSContext';
 import EditableMedia from '../common/EditableMedia';
 import EditableText from '../common/EditableText';
@@ -21,17 +30,6 @@ export default function SplashScreen({ onNavigate }) {
 
   return (
     <div className="phone-screen splash-screen">
-      {/* Status Bar */}
-      <div className="phone-status-bar dark">
-        <span className="status-time">9:41</span>
-        <div className="dynamic-island" />
-        <div className="status-icons">
-          <span>•••</span>
-          <span>WiFi</span>
-          <span className="battery-pill">99</span>
-        </div>
-      </div>
-
       {/* Hero Portrait Image (100% Editable by Salon Owner) */}
       <div className="splash-hero-container">
         <EditableMedia
@@ -45,7 +43,7 @@ export default function SplashScreen({ onNavigate }) {
           <div className="splash-gradient-overlay" />
         </EditableMedia>
 
-        {/* Top Salon Brand Pill & Quick AI Button */}
+        {/* Top Native App Bar: Salon Brand Pill + Share + Menu + AI */}
         <div className="splash-top-brand-row">
           <div className="splash-brand-pill">
             {branding.logoUrl ? (
@@ -64,18 +62,37 @@ export default function SplashScreen({ onNavigate }) {
               className="splash-brand-name"
             />
           </div>
-          <button
-            type="button"
-            className="splash-ai-pill-btn"
-            onClick={() => setActiveModal('ai')}
-            title="Consultar a la Asesora IA"
-          >
-            <Sparkles size={13} />
-            <EditableText
-              value={branding.aiButtonLabel || 'Asesora IA'}
-              onSave={(val) => updateBrandingField('aiButtonLabel', val)}
-            />
-          </button>
+
+          <div className="splash-top-actions">
+            <button
+              type="button"
+              className="splash-action-icon-btn"
+              onClick={() => setActiveModal('share')}
+              title="Compartir link de la tienda"
+            >
+              <Share2 size={15} />
+            </button>
+            <button
+              type="button"
+              className="splash-ai-pill-btn"
+              onClick={() => setActiveModal('ai')}
+              title="Consultar a la Asesora IA"
+            >
+              <Sparkles size={13} />
+              <EditableText
+                value={branding.aiButtonLabel || 'Asesora IA'}
+                onSave={(val) => updateBrandingField('aiButtonLabel', val)}
+              />
+            </button>
+            <button
+              type="button"
+              className="splash-action-icon-btn menu"
+              onClick={() => setActiveModal('drawer')}
+              title="Abrir menú de administración"
+            >
+              <Menu size={16} />
+            </button>
+          </div>
         </div>
 
         {/* Bottom Editorial Copy, Editable Business Info & Dusty Rose CTA */}

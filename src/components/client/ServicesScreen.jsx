@@ -8,7 +8,9 @@ import {
   Home,
   Compass,
   Calendar,
-  User
+  User,
+  Share2,
+  Menu
 } from 'lucide-react';
 import { useSaaS } from '../../context/SaaSContext';
 import EditableMedia from '../common/EditableMedia';
@@ -127,25 +129,21 @@ export default function ServicesScreen({ onNavigate }) {
     <div className="phone-screen services-screen">
       {/* Curved Dusty Rose Header */}
       <div className="services-rose-header">
-        <div className="phone-status-bar dark">
-          <span className="status-time">7:41</span>
-          <div className="dynamic-island" />
-          <div className="status-icons">
-            <span>•••</span>
-            <span>WiFi</span>
-            <span className="battery-pill">100</span>
-          </div>
-        </div>
-
         <div className="services-header-top-row">
           <button
             type="button"
             className="services-back-btn"
             onClick={() => goScreen('home')}
+            title="Volver a Inicio"
           >
             <ChevronLeft size={20} />
           </button>
-          <div style={{ display: 'flex', gap: 6 }}>
+          
+          <div className="services-header-title-box">
+            <span className="services-header-brand-name">{branding.businessName}</span>
+          </div>
+
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
             {liveEditMode && (
               <>
                 <button
@@ -154,7 +152,7 @@ export default function ServicesScreen({ onNavigate }) {
                   onClick={addNewCategoryInline}
                 >
                   <Plus size={13} />
-                  <span>+ Categoría</span>
+                  <span>+ Cat.</span>
                 </button>
                 <button
                   type="button"
@@ -166,6 +164,22 @@ export default function ServicesScreen({ onNavigate }) {
                 </button>
               </>
             )}
+            <button
+              type="button"
+              className="services-action-icon-btn"
+              onClick={() => setActiveModal('share')}
+              title="Compartir link de la tienda"
+            >
+              <Share2 size={16} />
+            </button>
+            <button
+              type="button"
+              className="services-action-icon-btn"
+              onClick={() => setActiveModal('drawer')}
+              title="Abrir menú"
+            >
+              <Menu size={18} />
+            </button>
           </div>
         </div>
 
@@ -346,9 +360,14 @@ export default function ServicesScreen({ onNavigate }) {
           <Calendar size={18} />
           <span>Mi Turno</span>
         </button>
-        <button type="button" className="bnav-item" onClick={() => setActiveModal('owner')}>
+        <button
+          type="button"
+          className="bnav-item"
+          onClick={() => setActiveModal('drawer')}
+          title="Menú, Finanzas y Administración"
+        >
           <User size={18} />
-          <span>Panel</span>
+          <span>Menú</span>
         </button>
       </div>
     </div>

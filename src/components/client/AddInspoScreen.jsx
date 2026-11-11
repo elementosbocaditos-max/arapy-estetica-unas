@@ -9,7 +9,9 @@ import {
   Trash2,
   Sparkles,
   UserPlus,
-  UserMinus
+  UserMinus,
+  Share2,
+  Menu
 } from 'lucide-react';
 import { useSaaS } from '../../context/SaaSContext';
 import EditableMedia from '../common/EditableMedia';
@@ -159,24 +161,14 @@ export default function AddInspoScreen({ onNavigate }) {
 
   return (
     <div className="phone-screen add-inspo-screen">
-      {/* Dark Status Bar */}
-      <div className="phone-status-bar dark">
-        <span className="status-time">9:41</span>
-        <div className="dynamic-island" />
-        <div className="status-icons">
-          <span>•••</span>
-          <span>WiFi</span>
-          <span className="battery-pill">99</span>
-        </div>
-      </div>
-
       <div className="inspo-scroll-body">
-        {/* Top Back Button & Upload Photo Button */}
+        {/* Top Back Button & Actions Row */}
         <div className="inspo-top-bar">
           <button
             type="button"
             className="inspo-circle-icon-btn"
             onClick={() => goScreen('home')}
+            title="Volver a Inicio"
           >
             <ChevronLeft size={19} />
           </button>
@@ -188,21 +180,42 @@ export default function AddInspoScreen({ onNavigate }) {
             style={{ display: 'none' }}
             onChange={handleUploadNewInspoPhoto}
           />
-          <button
-            type="button"
-            className="inspo-upload-pill-btn"
-            onClick={() => clientFileRef.current?.click()}
-          >
-            <Upload size={13} />
-            <EditableText
-              value={
-                uploadingClientPhoto
-                  ? 'Subiendo...'
-                  : branding.inspoUploadButtonLabel || 'Subir Foto Propia'
-              }
-              onSave={(val) => updateBrandingField('inspoUploadButtonLabel', val)}
-            />
-          </button>
+
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <button
+              type="button"
+              className="inspo-upload-pill-btn"
+              onClick={() => clientFileRef.current?.click()}
+            >
+              <Upload size={13} />
+              <EditableText
+                value={
+                  uploadingClientPhoto
+                    ? 'Subiendo...'
+                    : branding.inspoUploadButtonLabel || 'Subir Foto Propia'
+                }
+                onSave={(val) => updateBrandingField('inspoUploadButtonLabel', val)}
+              />
+            </button>
+
+            <button
+              type="button"
+              className="inspo-circle-icon-btn"
+              onClick={() => setActiveModal('share')}
+              title="Compartir link de la tienda"
+            >
+              <Share2 size={16} />
+            </button>
+
+            <button
+              type="button"
+              className="inspo-circle-icon-btn"
+              onClick={() => setActiveModal('drawer')}
+              title="Abrir menú"
+            >
+              <Menu size={18} />
+            </button>
+          </div>
         </div>
 
         {/* Title Row ("Add inspo" + Chat AI + Heart Icons) */}

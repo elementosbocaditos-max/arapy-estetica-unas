@@ -56,17 +56,19 @@ export function SaaSProvider({ children }) {
 
   // Navigation & View Modes:
   // activeScreen: 'splash' | 'home' | 'services' | 'inspo' | 'booking'
-  // viewMode: 'single' (Mobile App Interactive) | 'showcase' (Side-by-Side Reference Screens)
+  // viewMode: 'single' (Native Full-Screen Mobile App)
   const [activeScreen, setActiveScreen] = useState('splash');
-  const [viewMode, setViewMode] = useState('showcase');
+  const [viewMode, setViewMode] = useState('single');
   const [liveEditMode, setLiveEditMode] = useState(false);
 
-  // Modals: 'none' | 'ai' | 'owner' | 'arapy'
+  // Modals: 'none' | 'ai' | 'owner' | 'arapy' | 'share' | 'drawer'
   const [activeModal, setActiveModal] = useState(() => {
     const params = new URLSearchParams(window.location.search);
     const panel = params.get('panel') || params.get('mode');
     if (panel === 'owner' || panel === 'admin') return 'owner';
     if (panel === 'arapy' || panel === 'superadmin') return 'arapy';
+    if (panel === 'share') return 'share';
+    if (panel === 'drawer' || panel === 'menu') return 'drawer';
     return 'none';
   });
 

@@ -14,7 +14,8 @@ import {
   MapPin,
   Phone,
   Clock,
-  Plus
+  Plus,
+  Share2
 } from 'lucide-react';
 import { useSaaS } from '../../context/SaaSContext';
 import EditableMedia from '../common/EditableMedia';
@@ -125,25 +126,14 @@ export default function HomeDashboard({ onNavigate }) {
 
   return (
     <div className="phone-screen home-dashboard-screen">
-      {/* Status Bar */}
-      <div className="phone-status-bar light">
-        <span className="status-time">7:41</span>
-        <div className="dynamic-island" />
-        <div className="status-icons">
-          <span>•••</span>
-          <span>WiFi</span>
-          <span className="battery-pill dark">100</span>
-        </div>
-      </div>
-
       <div className="home-scroll-body">
-        {/* Top Utility Row */}
+        {/* Top Native In-App Navigation Bar */}
         <div className="home-top-nav">
           <button
             type="button"
-            className="home-icon-btn"
-            onClick={() => setActiveModal('owner')}
-            title="Abrir Panel de Configuración del Negocio"
+            className="home-icon-btn menu-toggle-btn"
+            onClick={() => setActiveModal('drawer')}
+            title="Abrir Menú y Panel de Administración"
           >
             <Menu size={20} />
           </button>
@@ -152,6 +142,7 @@ export default function HomeDashboard({ onNavigate }) {
             type="button"
             className="home-ai-assistant-chip"
             onClick={() => setActiveModal('ai')}
+            title="Consultar Asesora IA"
           >
             <Wand2 size={13} />
             <EditableText
@@ -160,15 +151,26 @@ export default function HomeDashboard({ onNavigate }) {
             />
           </button>
 
-          <button
-            type="button"
-            className="home-icon-btn notification-bell"
-            onClick={() => goScreen('booking')}
-            title="Ver tu próximo turno"
-          >
-            <Bell size={20} />
-            <span className="bell-red-dot" />
-          </button>
+          <div className="home-top-right-group">
+            <button
+              type="button"
+              className="home-icon-btn share-store-top-btn"
+              onClick={() => setActiveModal('share')}
+              title="Compartir link de la tienda"
+            >
+              <Share2 size={18} />
+            </button>
+
+            <button
+              type="button"
+              className="home-icon-btn notification-bell"
+              onClick={() => goScreen('booking')}
+              title="Ver tu próximo turno"
+            >
+              <Bell size={19} />
+              <span className="bell-red-dot" />
+            </button>
+          </div>
         </div>
 
         {/* Greeting Header (100% Editable, zero hardcoded proper names) */}
@@ -517,9 +519,14 @@ export default function HomeDashboard({ onNavigate }) {
           <Calendar size={18} />
           <span>Mi Turno</span>
         </button>
-        <button type="button" className="bnav-item" onClick={() => setActiveModal('owner')}>
+        <button
+          type="button"
+          className="bnav-item"
+          onClick={() => setActiveModal('drawer')}
+          title="Menú, Finanzas y Administración"
+        >
           <User size={18} />
-          <span>Panel</span>
+          <span>Menú</span>
         </button>
       </div>
     </div>

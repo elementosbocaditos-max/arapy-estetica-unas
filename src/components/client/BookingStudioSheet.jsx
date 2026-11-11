@@ -10,7 +10,9 @@ import {
   ChevronDown,
   MapPin,
   Phone,
-  Clock
+  Clock,
+  Share2,
+  Menu
 } from 'lucide-react';
 import { useSaaS } from '../../context/SaaSContext';
 import EditableMedia from '../common/EditableMedia';
@@ -41,6 +43,7 @@ export default function BookingStudioSheet({ onNavigate }) {
     confirmAndSaveAppointment,
     liveEditMode,
     setActiveScreen,
+    setActiveModal,
     showToast
   } = useSaaS();
 
@@ -145,16 +148,6 @@ export default function BookingStudioSheet({ onNavigate }) {
     <div className="phone-screen booking-studio-screen">
       {/* Top Dramatic Editorial Nail/Hair Hero Photo */}
       <div className="booking-hero-top">
-        <div className="phone-status-bar dark">
-          <span className="status-time">9:41</span>
-          <div className="dynamic-island" />
-          <div className="status-icons">
-            <span>•••</span>
-            <span>WiFi</span>
-            <span className="battery-pill">99</span>
-          </div>
-        </div>
-
         <EditableMedia
           src={branding.bookingHeroImage}
           alt={branding.studioBadgeTitle}
@@ -166,19 +159,41 @@ export default function BookingStudioSheet({ onNavigate }) {
           <div className="booking-hero-shade" />
         </EditableMedia>
 
-        <button
-          type="button"
-          className="booking-glass-back-btn"
-          onClick={() => goScreen('home')}
-        >
-          <ChevronLeft size={19} />
-        </button>
+        <div className="booking-hero-nav-row">
+          <button
+            type="button"
+            className="booking-glass-back-btn"
+            onClick={() => goScreen('home')}
+            title="Volver a Inicio"
+          >
+            <ChevronLeft size={19} />
+          </button>
 
-        <div className="booking-studio-tracked-title">
-          <EditableText
-            value={branding.studioBadgeTitle}
-            onSave={(val) => updateBrandingField('studioBadgeTitle', val)}
-          />
+          <div className="booking-studio-tracked-title">
+            <EditableText
+              value={branding.studioBadgeTitle}
+              onSave={(val) => updateBrandingField('studioBadgeTitle', val)}
+            />
+          </div>
+
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <button
+              type="button"
+              className="booking-glass-action-btn"
+              onClick={() => setActiveModal('share')}
+              title="Compartir link de la tienda"
+            >
+              <Share2 size={16} />
+            </button>
+            <button
+              type="button"
+              className="booking-glass-action-btn"
+              onClick={() => setActiveModal('drawer')}
+              title="Abrir menú"
+            >
+              <Menu size={18} />
+            </button>
+          </div>
         </div>
       </div>
 
