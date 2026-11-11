@@ -134,6 +134,10 @@ export function SaaSProvider({ children }) {
         branding: {
           ...createTenantSeedDatabase(activeSlug).branding,
           ...(loadedDb.branding || {})
+        },
+        finances: {
+          ...createTenantSeedDatabase(activeSlug).finances,
+          ...(loadedDb.finances || {})
         }
       };
 

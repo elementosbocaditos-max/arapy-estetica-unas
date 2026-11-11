@@ -7,7 +7,8 @@ import {
   Smartphone,
   LayoutGrid,
   CheckCircle2,
-  Building2
+  Building2,
+  DollarSign
 } from 'lucide-react';
 import { SaaSProvider, useSaaS } from './context/SaaSContext';
 import SplashScreen from './components/client/SplashScreen';
@@ -140,6 +141,17 @@ function MainWorkspace() {
           >
             <Sparkles size={14} />
             <span>Asesora IA</span>
+          </button>
+
+          <button
+            type="button"
+            className="top-action-btn owner-btn"
+            style={{ background: 'linear-gradient(135deg, #102a1c, #163825)', borderColor: '#7ee2a8', color: '#7ee2a8' }}
+            onClick={() => setActiveModal('owner')}
+            title="Abrir Sector de Finanzas, Caja, Señas y Comisiones"
+          >
+            <DollarSign size={14} />
+            <span>Finanzas & Caja</span>
           </button>
 
           <button

@@ -441,20 +441,92 @@ export function createTenantSeedDatabase(slug = 'estudio-principal', customMeta 
         specialistId: 'spec-1',
         specialistName: 'Colaboradora 1 (Nombre Editable)',
         studioCode: 'Sucursal Principal',
-        dateLabel: 'Mañana',
+        dateLabel: 'Hoy',
         timeSlot: '11:00',
         timeRange: '11:00-12:00',
         totalPrice: 18000,
         depositAmount: 9000,
-        status: 'confirmed',
+        status: 'completed',
         nailShape: 'Natural / Corto',
         inspoImages: ['./assets/hair-cut.jpg', './assets/inspo-rose-french.jpg'],
-        notes: 'Turno de ejemplo editable o eliminable desde la agenda.',
+        notes: 'Turno atendido y abonado en su totalidad.',
+        paymentMethod: 'Mercado Pago / Transferencia',
+        commissionPaid: 5400,
         createdAt: '2026-11-11T10:00:00.000Z'
+      },
+      {
+        id: 'apt-1002',
+        code: 'TS-842',
+        clientName: 'Clienta 2 (Editable)',
+        clientPhone: '5491100000001',
+        serviceId: 'srv-manicure-3d',
+        serviceName: 'Manicure 3D',
+        addonLabel: '+ mini patterns',
+        specialistId: 'spec-2',
+        specialistName: 'Colaboradora 2 (Nombre Editable)',
+        studioCode: 'Sucursal Principal',
+        dateLabel: 'Mañana',
+        timeSlot: '15:00',
+        timeRange: '15:00-16:30',
+        totalPrice: 24000,
+        depositAmount: 12000,
+        status: 'confirmed',
+        nailShape: 'Almendra',
+        inspoImages: ['./assets/studio-nails.jpg'],
+        notes: 'Seña abonada por Alias bancario.',
+        paymentMethod: 'Transferencia Bancaria',
+        commissionPaid: 7200,
+        createdAt: '2026-11-11T11:00:00.000Z'
       }
     ],
 
-    // 8. PER-TENANT CLOUD DATABASE CONNECTOR (Supabase / Webhook)
+    // 8. FULL FINANCIAL SYSTEM (Cash Flow, Incomes, Expenses, Commissions & Daily Closing)
+    finances: {
+      initialCashBalance: 15000,
+      collaboratorCommissionRate: 40, // % standard commission for collaborators
+      taxRate: 0,
+      paymentMethods: [
+        'Efectivo',
+        'Mercado Pago / Transferencia',
+        'Tarjeta de Débito',
+        'Tarjeta de Crédito',
+        'Cuenta Corriente'
+      ],
+      expenses: [
+        {
+          id: 'exp-1',
+          date: '2026-11-11',
+          category: 'Insumos & Esmaltes',
+          concept: 'Reposición geles UV, limas y top coat',
+          amount: 8500,
+          paymentMethod: 'Efectivo',
+          collaboratorId: 'general',
+          receiptNumber: 'FAC-00129'
+        },
+        {
+          id: 'exp-2',
+          date: '2026-11-10',
+          category: 'Servicios & Alquiler',
+          concept: 'Luz y Wi-Fi del salón',
+          amount: 14000,
+          paymentMethod: 'Mercado Pago / Transferencia',
+          collaboratorId: 'general',
+          receiptNumber: 'FAC-00118'
+        }
+      ],
+      cashMovements: [
+        {
+          id: 'mov-1',
+          date: '2026-11-11T09:00:00.000Z',
+          type: 'apertura', // 'apertura' | 'ingreso' | 'egreso' | 'retiro'
+          description: 'Apertura de Caja Inicial',
+          amount: 15000,
+          paymentMethod: 'Efectivo'
+        }
+      ]
+    },
+
+    // 9. PER-TENANT CLOUD DATABASE CONNECTOR (Supabase / Webhook)
     databaseConfig: {
       provider: 'local_disk_and_idb',
       supabaseUrl: '',

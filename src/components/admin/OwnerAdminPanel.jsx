@@ -14,7 +14,14 @@ import {
   Download,
   RotateCcw,
   Users,
-  Layers
+  Layers,
+  DollarSign,
+  TrendingUp,
+  TrendingDown,
+  Receipt,
+  Wallet,
+  PieChart,
+  CreditCard
 } from 'lucide-react';
 import { useSaaS } from '../../context/SaaSContext';
 import { THEME_PRESETS } from '../../data/seedTemplates';
@@ -38,12 +45,22 @@ export default function OwnerAdminPanel() {
     showToast
   } = useSaaS();
 
-  const [tab, setTab] = useState('branding'); // 'branding' | 'categories_services' | 'collaborators_inspo' | 'schedule' | 'agenda' | 'database'
+  const [tab, setTab] = useState('finances'); // 'finances' | 'agenda' | 'categories_services' | 'collaborators_inspo' | 'schedule' | 'branding' | 'database'
   const [newSlotInput, setNewSlotInput] = useState('');
   const [newDateInput, setNewDateInput] = useState('');
   const [newWorkOptionInput, setNewWorkOptionInput] = useState('');
   const [newCatName, setNewCatName] = useState('');
   const [newCatIcon, setNewCatIcon] = useState('✨');
+
+  // Finance Section Form States
+  const [expenseConcept, setExpenseConcept] = useState('');
+  const [expenseAmount, setExpenseAmount] = useState('');
+  const [expenseCategory, setExpenseCategory] = useState('Insumos & Esmaltes');
+  const [expensePaymentMethod, setExpensePaymentMethod] = useState('Efectivo');
+  const [cashMovementType, setCashMovementType] = useState('ingreso'); // 'ingreso' | 'egreso' | 'retiro'
+  const [cashMovementDesc, setCashMovementDesc] = useState('');
+  const [cashMovementAmount, setCashMovementAmount] = useState('');
+  const [financeTimeRange, setFinanceTimeRange] = useState('all'); // 'all' | 'today' | 'month'
 
   if (activeModal !== 'owner') return null;
 
@@ -55,6 +72,7 @@ export default function OwnerAdminPanel() {
     specialists = [],
     inspoGallery = [],
     appointments = [],
+    finances = { expenses: [], cashMovements: [], initialCashBalance: 15000, collaboratorCommissionRate: 40 },
     databaseConfig = {}
   } = tenantDb;
 
@@ -354,6 +372,132 @@ export default function OwnerAdminPanel() {
     reader.readAsText(file);
   };
 
+  // ---------------------------------------------------------------------------
+  // 7. FULL FINANCES & CASH FLOW HANDLERS
+  // ---------------------------------------------------------------------------
+  const handleAddExpense = (e) => {
+    e.preventDefault();
+    const cleanAmount = Number(String(expenseAmount).replace(/[^\d.]/g, '')) || 0;
+    if (!expenseConcept.trim() || cleanAmount <= 0) {
+      showToast('Ingresá el concepto y un monto válido para el gasto');
+      return;
+    }
+    const newExp = {
+      id: `exp-${Date.now()}`,
+      date: new Date().toISOString().slice(0, 10),
+      category: expenseCategory,
+      concept: expenseConcept.trim(),
+      amount: cleanAmount,
+      paymentMethod: expensePaymentMethod,
+      collaboratorId: 'general',
+      receiptNumber: `REC-${Math.floor(1000 + Math.random() * 9000)}`
+    };
+    persistTenantUpdate((prev) => ({
+      ...prev,
+      finances: {
+        ...(prev.finances || {}),
+        expenses: [newExp, ...(prev.finances?.expenses || [])]
+      }
+    }), `Gasto de $${cleanAmount.toLocaleString('es-AR')} registrado`);
+    setExpenseConcept('');
+    setExpenseAmount('');
+    showToast(`💸 Gasto registrado: $${cleanAmount.toLocaleString('es-AR')}`);
+  };
+
+  const handleDeleteExpense = (expId) => {
+    persistTenantUpdate((prev) => ({
+      ...prev,
+      finances: {
+        ...(prev.finances || {}),
+        expenses: (prev.finances?.expenses || []).filter((x) => x.id !== expId)
+      }
+    }), 'Gasto eliminado');
+    showToast('🗑️ Gasto eliminado');
+  };
+
+  const handleAddCashMovement = (e) => {
+    e.preventDefault();
+    const cleanAmount = Number(String(cashMovementAmount).replace(/[^\d.]/g, '')) || 0;
+    if (!cashMovementDesc.trim() || cleanAmount <= 0) {
+      showToast('Ingresá la descripción y el monto del movimiento');
+      return;
+    }
+    const newMov = {
+      id: `mov-${Date.now()}`,
+      date: new Date().toISOString(),
+      type: cashMovementType,
+      description: cashMovementDesc.trim(),
+      amount: cleanAmount,
+      paymentMethod: 'Efectivo'
+    };
+    persistTenantUpdate((prev) => ({
+      ...prev,
+      finances: {
+        ...(prev.finances || {}),
+        cashMovements: [newMov, ...(prev.finances?.cashMovements || [])]
+      }
+    }), `Movimiento de caja registrado`);
+    setCashMovementDesc('');
+    setCashMovementAmount('');
+    showToast(`💵 Movimiento de caja registrado ($${cleanAmount.toLocaleString('es-AR')})`);
+  };
+
+  const handleDeleteCashMovement = (movId) => {
+    persistTenantUpdate((prev) => ({
+      ...prev,
+      finances: {
+        ...(prev.finances || {}),
+        cashMovements: (prev.finances?.cashMovements || []).filter((m) => m.id !== movId)
+      }
+    }), 'Movimiento eliminado');
+  };
+
+  // Financial Metrics Computed Live from Database
+  const currencySymbol = operations.currencySymbol || '$';
+  const totalBilledAppointments = appointments
+    .filter((a) => a.status === 'confirmed' || a.status === 'completed')
+    .reduce((acc, a) => acc + (Number(a.totalPrice) || 0), 0);
+
+  const totalCollectedDeposits = appointments
+    .filter((a) => a.status === 'confirmed' || a.status === 'completed')
+    .reduce((acc, a) => acc + (Number(a.depositAmount) || 0), 0);
+
+  const totalRemainingToCollect = appointments
+    .filter((a) => a.status === 'confirmed')
+    .reduce((acc, a) => acc + Math.max(0, (Number(a.totalPrice) || 0) - (Number(a.depositAmount) || 0)), 0);
+
+  const totalExpenses = (finances.expenses || []).reduce((acc, x) => acc + (Number(x.amount) || 0), 0);
+
+  const totalCashIn = (finances.cashMovements || [])
+    .filter((m) => m.type === 'apertura' || m.type === 'ingreso')
+    .reduce((acc, m) => acc + (Number(m.amount) || 0), 0);
+
+  const totalCashOut = (finances.cashMovements || [])
+    .filter((m) => m.type === 'egreso' || m.type === 'retiro')
+    .reduce((acc, m) => acc + (Number(m.amount) || 0), 0);
+
+  const netCashInDrawer = totalCashIn - totalCashOut;
+  const netOperatingProfit = totalBilledAppointments - totalExpenses;
+
+  // Breakdown of income by collaborator
+  const collaboratorEarnings = specialists.map((spec) => {
+    const specApts = appointments.filter((a) => a.specialistId === spec.id && (a.status === 'confirmed' || a.status === 'completed'));
+    const gross = specApts.reduce((acc, a) => acc + (Number(a.totalPrice) || 0), 0);
+    const commRate = Number(finances.collaboratorCommissionRate || 40);
+    const commission = Math.round((gross * commRate) / 100);
+    const salonShare = gross - commission;
+    return {
+      id: spec.id,
+      name: spec.name,
+      role: spec.role,
+      avatar: spec.avatar,
+      appointmentsCount: specApts.length,
+      gross,
+      commission,
+      salonShare
+    };
+  });
+
   return (
     <div className="modal-backdrop" onClick={() => setActiveModal('none')}>
       <div className="admin-modal-window" onClick={(e) => e.stopPropagation()}>
@@ -406,11 +550,20 @@ export default function OwnerAdminPanel() {
         <div className="admin-tabs-bar">
           <button
             type="button"
-            className={`admin-tab-btn ${tab === 'branding' ? 'active' : ''}`}
-            onClick={() => setTab('branding')}
+            className={`admin-tab-btn ${tab === 'finances' ? 'active' : ''}`}
+            onClick={() => setTab('finances')}
+            style={{ fontWeight: 800 }}
           >
-            <Palette size={15} />
-            <span>1. Nombre, Fotos, Dirección y Teléfono</span>
+            <DollarSign size={15} />
+            <span>💰 Sector Finanzas & Caja</span>
+          </button>
+          <button
+            type="button"
+            className={`admin-tab-btn ${tab === 'agenda' ? 'active' : ''}`}
+            onClick={() => setTab('agenda')}
+          >
+            <Calendar size={15} />
+            <span>📅 Agenda de Citas ({appointments.length})</span>
           </button>
           <button
             type="button"
@@ -419,7 +572,7 @@ export default function OwnerAdminPanel() {
           >
             <Layers size={15} />
             <span>
-              2. Categorías ({categories.length}) y Trabajos ({services.length})
+              Categorías ({categories.length}) y Trabajos ({services.length})
             </span>
           </button>
           <button
@@ -429,8 +582,16 @@ export default function OwnerAdminPanel() {
           >
             <Users size={15} />
             <span>
-              3. Colaboradores ({specialists.length}) y Galería ({inspoGallery.length})
+              Colaboradores ({specialists.length}) y Galería ({inspoGallery.length})
             </span>
+          </button>
+          <button
+            type="button"
+            className={`admin-tab-btn ${tab === 'branding' ? 'active' : ''}`}
+            onClick={() => setTab('branding')}
+          >
+            <Palette size={15} />
+            <span>Datos del Salón, Fotos y Textos</span>
           </button>
           <button
             type="button"
@@ -438,15 +599,7 @@ export default function OwnerAdminPanel() {
             onClick={() => setTab('schedule')}
           >
             <Clock size={15} />
-            <span>4. Horarios, Opciones y Seña</span>
-          </button>
-          <button
-            type="button"
-            className={`admin-tab-btn ${tab === 'agenda' ? 'active' : ''}`}
-            onClick={() => setTab('agenda')}
-          >
-            <Calendar size={15} />
-            <span>5. Agenda ({appointments.length})</span>
+            <span>Horarios, Opciones y Seña</span>
           </button>
           <button
             type="button"
@@ -454,12 +607,363 @@ export default function OwnerAdminPanel() {
             onClick={() => setTab('database')}
           >
             <Database size={15} />
-            <span>6. Base de Datos</span>
+            <span>Base de Datos</span>
           </button>
         </div>
 
         {/* Tab Body */}
         <div className="admin-tab-content">
+          {/* TAB 0: SECTOR FINANZAS COMPLETO (Ingresos, Señas, Gastos, Caja y Comisiones) */}
+          {tab === 'finances' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+              {/* Top 4 KPI Cards */}
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+                  gap: 14
+                }}
+              >
+                <div
+                  style={{
+                    background: 'linear-gradient(135deg, #1f1a1c, #2a2225)',
+                    color: '#fff',
+                    padding: '16px 18px',
+                    borderRadius: 16,
+                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                    boxShadow: '0 8px 24px rgba(0, 0, 0, 0.15)'
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: 12, opacity: 0.8, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                      Facturación Total Citas
+                    </span>
+                    <TrendingUp size={18} color="#7ee2a8" />
+                  </div>
+                  <div style={{ fontSize: 26, fontWeight: 800, marginTop: 8, color: '#fff' }}>
+                    {currencySymbol}{totalBilledAppointments.toLocaleString('es-AR')}
+                  </div>
+                  <div style={{ fontSize: 11.5, opacity: 0.7, marginTop: 4 }}>
+                    Citas confirmadas y atendidas en agenda
+                  </div>
+                </div>
+
+                <div
+                  style={{
+                    background: '#fff',
+                    padding: '16px 18px',
+                    borderRadius: 16,
+                    border: '1px solid #ebdada',
+                    boxShadow: '0 4px 16px rgba(0, 0, 0, 0.05)'
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: 12, color: '#68595a', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                      Señas Cobradas (50%)
+                    </span>
+                    <Wallet size={18} color="var(--rose-primary)" />
+                  </div>
+                  <div style={{ fontSize: 26, fontWeight: 800, marginTop: 8, color: 'var(--rose-dark)' }}>
+                    {currencySymbol}{totalCollectedDeposits.toLocaleString('es-AR')}
+                  </div>
+                  <div style={{ fontSize: 11.5, color: '#7a6c6e', marginTop: 4 }}>
+                    Por cobrar en local: {currencySymbol}{totalRemainingToCollect.toLocaleString('es-AR')}
+                  </div>
+                </div>
+
+                <div
+                  style={{
+                    background: '#fff',
+                    padding: '16px 18px',
+                    borderRadius: 16,
+                    border: '1px solid #fee2e2',
+                    boxShadow: '0 4px 16px rgba(0, 0, 0, 0.05)'
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: 12, color: '#991b1b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                      Gastos & Egresos
+                    </span>
+                    <TrendingDown size={18} color="#ef4444" />
+                  </div>
+                  <div style={{ fontSize: 26, fontWeight: 800, marginTop: 8, color: '#b91c1c' }}>
+                    {currencySymbol}{totalExpenses.toLocaleString('es-AR')}
+                  </div>
+                  <div style={{ fontSize: 11.5, color: '#991b1b', marginTop: 4 }}>
+                    {(finances.expenses || []).length} gasto(s) registrados
+                  </div>
+                </div>
+
+                <div
+                  style={{
+                    background: 'linear-gradient(135deg, #102a1c, #163825)',
+                    color: '#fff',
+                    padding: '16px 18px',
+                    borderRadius: 16,
+                    border: '1px solid rgba(126, 226, 168, 0.3)',
+                    boxShadow: '0 8px 24px rgba(0, 0, 0, 0.15)'
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: 12, opacity: 0.85, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                      Ganancia Operativa Neta
+                    </span>
+                    <PieChart size={18} color="#7ee2a8" />
+                  </div>
+                  <div style={{ fontSize: 26, fontWeight: 800, marginTop: 8, color: '#7ee2a8' }}>
+                    {currencySymbol}{netOperatingProfit.toLocaleString('es-AR')}
+                  </div>
+                  <div style={{ fontSize: 11.5, opacity: 0.75, marginTop: 4 }}>
+                    Caja en mano estimada: {currencySymbol}{netCashInDrawer.toLocaleString('es-AR')}
+                  </div>
+                </div>
+              </div>
+
+              {/* Grid 2 Columns: Registrador de Gastos / Movimientos de Caja */}
+              <div className="admin-grid-2col">
+                {/* Left: Registro y Control de Gastos */}
+                <div className="admin-panel-box">
+                  <div className="admin-box-top-bar">
+                    <div>
+                      <h3>💸 Registrar Gasto / Egreso del Salón</h3>
+                      <p>Insumos, esmaltes, alquiler, servicios, reparaciones, etc.</p>
+                    </div>
+                  </div>
+
+                  <form className="admin-form-stack" onSubmit={handleAddExpense}>
+                    <div className="admin-row-2">
+                      <label>
+                        Concepto del Gasto
+                        <input
+                          type="text"
+                          value={expenseConcept}
+                          onChange={(e) => setExpenseConcept(e.target.value)}
+                          placeholder="Ej: Esmaltes OPI y geles UV"
+                          required
+                        />
+                      </label>
+                      <label>
+                        Monto ({currencySymbol})
+                        <input
+                          type="number"
+                          value={expenseAmount}
+                          onChange={(e) => setExpenseAmount(e.target.value)}
+                          placeholder="Ej: 12500"
+                          min="1"
+                          required
+                        />
+                      </label>
+                    </div>
+
+                    <div className="admin-row-2">
+                      <label>
+                        Rubro / Categoría de Gasto
+                        <select
+                          value={expenseCategory}
+                          onChange={(e) => setExpenseCategory(e.target.value)}
+                        >
+                          <option value="Insumos & Esmaltes">💅 Insumos & Esmaltes</option>
+                          <option value="Productos Capilares">✂️ Productos Capilares</option>
+                          <option value="Alquiler & Servicios">🏢 Alquiler & Servicios (Luz/Internet)</option>
+                          <option value="Mantenimiento & Equipos">⚡ Mantenimiento & Equipos</option>
+                          <option value="Publicidad & Marketing">📣 Publicidad & Redes</option>
+                          <option value="Impuestos & Honorarios">📑 Impuestos & Honorarios</option>
+                          <option value="Otros Egresos">📦 Otros Egresos</option>
+                        </select>
+                      </label>
+
+                      <label>
+                        Método de Pago
+                        <select
+                          value={expensePaymentMethod}
+                          onChange={(e) => setExpensePaymentMethod(e.target.value)}
+                        >
+                          <option value="Efectivo">💵 Efectivo (Caja Chica)</option>
+                          <option value="Mercado Pago / Transferencia">📱 Mercado Pago / Transferencia</option>
+                          <option value="Tarjeta de Débito">💳 Tarjeta de Débito</option>
+                          <option value="Tarjeta de Crédito">💳 Tarjeta de Crédito</option>
+                        </select>
+                      </label>
+                    </div>
+
+                    <button type="submit" className="admin-primary-btn full-width-btn" style={{ marginTop: 6 }}>
+                      <Plus size={15} />
+                      <span>Registrar Gasto en la Base de Datos</span>
+                    </button>
+                  </form>
+
+                  <h4 style={{ marginTop: 22, marginBottom: 10, fontSize: 14 }}>
+                    Historial de Gastos Registrados ({(finances.expenses || []).length})
+                  </h4>
+
+                  <div style={{ maxHeight: 240, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {(finances.expenses || []).map((x) => (
+                      <div
+                        key={x.id}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          background: '#fef2f2',
+                          border: '1px solid #fee2e2',
+                          borderRadius: 12,
+                          padding: '10px 14px',
+                          fontSize: 12.5
+                        }}
+                      >
+                        <div>
+                          <strong style={{ color: '#991b1b' }}>{x.concept}</strong>
+                          <div style={{ fontSize: 11, color: '#7f1d1d', marginTop: 2 }}>
+                            {x.date} • {x.category} • {x.paymentMethod}
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <span style={{ fontWeight: 800, color: '#b91c1c', fontSize: 14 }}>
+                            -{currencySymbol}{Number(x.amount).toLocaleString('es-AR')}
+                          </span>
+                          <button
+                            type="button"
+                            className="admin-delete-icon-btn"
+                            onClick={() => handleDeleteExpense(x.id)}
+                            title="Eliminar gasto"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                    {(finances.expenses || []).length === 0 && (
+                      <div style={{ textAlign: 'center', padding: '16px 0', color: '#991b1b', fontSize: 12 }}>
+                        No hay gastos registrados en este período.
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Right: Arqueo de Caja y Comisión por Colaborador */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                  {/* Arqueo de Caja Rápido */}
+                  <div className="admin-panel-box">
+                    <h3>💵 Arqueo y Control de Caja Diaria</h3>
+                    <form className="admin-form-stack" onSubmit={handleAddCashMovement} style={{ marginTop: 10 }}>
+                      <div className="admin-row-3">
+                        <label>
+                          Tipo
+                          <select
+                            value={cashMovementType}
+                            onChange={(e) => setCashMovementType(e.target.value)}
+                          >
+                            <option value="ingreso">🟢 Ingreso Caja</option>
+                            <option value="egreso">🔴 Egreso / Retiro</option>
+                            <option value="apertura">🟡 Apertura de Caja</option>
+                          </select>
+                        </label>
+                        <label>
+                          Monto ({currencySymbol})
+                          <input
+                            type="number"
+                            value={cashMovementAmount}
+                            onChange={(e) => setCashMovementAmount(e.target.value)}
+                            placeholder="Monto"
+                            min="1"
+                            required
+                          />
+                        </label>
+                        <label>
+                          Descripción
+                          <input
+                            type="text"
+                            value={cashMovementDesc}
+                            onChange={(e) => setCashMovementDesc(e.target.value)}
+                            placeholder="Ej: Cambio inicial"
+                            required
+                          />
+                        </label>
+                      </div>
+                      <button type="submit" className="admin-secondary-btn full-width-btn">
+                        <Plus size={14} />
+                        <span>Asentar en Libro de Caja</span>
+                      </button>
+                    </form>
+
+                    <div style={{ marginTop: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f5efeb', padding: '10px 14px', borderRadius: 12, fontSize: 13 }}>
+                      <span>Saldo Estimado en Caja Efectivo:</span>
+                      <strong style={{ fontSize: 16, color: '#191412' }}>
+                        {currencySymbol}{netCashInDrawer.toLocaleString('es-AR')}
+                      </strong>
+                    </div>
+                  </div>
+
+                  {/* Liquidación de Comisiones a Colaboradores */}
+                  <div className="admin-panel-box">
+                    <div className="admin-box-top-bar">
+                      <div>
+                        <h3>👩‍🎨 Comisiones a Colaboradores</h3>
+                        <p>Calculado según citas atendidas en la agenda:</p>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
+                        <span>% Comisión:</span>
+                        <input
+                          type="number"
+                          min="0"
+                          max="100"
+                          value={finances.collaboratorCommissionRate || 40}
+                          onChange={(e) => {
+                            const rate = Number(e.target.value) || 0;
+                            persistTenantUpdate((prev) => ({
+                              ...prev,
+                              finances: {
+                                ...(prev.finances || {}),
+                                collaboratorCommissionRate: rate
+                              }
+                            }));
+                          }}
+                          style={{ width: 55, padding: '4px 6px', textAlign: 'center', borderRadius: 8, border: '1px solid #d5c8c6', fontWeight: 700 }}
+                        />
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 10 }}>
+                      {collaboratorEarnings.map((c) => (
+                        <div
+                          key={c.id}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            background: '#faf7f6',
+                            border: '1px solid #e7dedc',
+                            borderRadius: 12,
+                            padding: '10px 12px'
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                            <img
+                              src={c.avatar}
+                              alt={c.name}
+                              style={{ width: 34, height: 34, borderRadius: '50%', objectFit: 'cover' }}
+                              onError={(e) => { e.currentTarget.src = './assets/stylist-main.jpg'; }}
+                            />
+                            <div>
+                              <strong>{c.name}</strong>
+                              <div style={{ fontSize: 11, color: '#665759' }}>
+                                {c.appointmentsCount} turno(s) • Facturado: {currencySymbol}{c.gross.toLocaleString('es-AR')}
+                              </div>
+                            </div>
+                          </div>
+                          <div style={{ textAlign: 'right', fontSize: 12 }}>
+                            <div>A pagar: <strong style={{ color: 'var(--rose-dark)' }}>{currencySymbol}{c.commission.toLocaleString('es-AR')}</strong></div>
+                            <div style={{ fontSize: 10.5, color: '#7a6b6d' }}>Salón: {currencySymbol}{c.salonShare.toLocaleString('es-AR')}</div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* TAB 1: BRANDING, CONTACT INFO, PHOTOS & COLORS */}
           {tab === 'branding' && (
             <div className="admin-grid-2col">
