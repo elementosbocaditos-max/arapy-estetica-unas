@@ -537,7 +537,7 @@ textarea {
 }
 
 /* ============================================================================
-   SCREEN 2: HOME DASHBOARD ("Hi, Mahi — Welcome Back!")
+   SCREEN 2: HOME DASHBOARD
    ============================================================================ */
 .home-dashboard-screen {
   background: var(--ivory-bg);
@@ -3130,4 +3130,84 @@ textarea {
   font-size: 13.5px;
   color: #5f5250;
   margin-bottom: 18px;
+}
+
+/* ============================================================================
+   EDITABLE BUSINESS CONTACT, HOURS & ADDRESS STRIPS ON ALL SCREENS
+   ============================================================================ */
+.splash-info-strip {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 14px;
+  padding: 9px 12px;
+  margin-bottom: 14px;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.splash-info-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.home-salon-mini-tag {
+  display: inline-block;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--rose-dark);
+  background: var(--rose-soft);
+  padding: 3px 9px;
+  border-radius: 999px;
+  margin-bottom: 5px;
+}
+
+.home-business-info-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 8px;
+}
+
+.home-info-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10.5px;
+  color: #5b4e50;
+  background: #f3ecea;
+  border: 1px solid #e5d9d7;
+  padding: 3px 8px;
+  border-radius: 999px;
+}
+
+.booking-contact-mini-strip {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: rgba(25, 20, 18, 0.04);
+  border: 1px solid rgba(25, 20, 18, 0.08);
+  border-radius: 12px;
+  padding: 8px 11px;
+  font-size: 11px;
+  color: #4f4345;
+  margin-bottom: 10px;
+}
+
+.booking-contact-mini-strip span {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.add-cat-pill {
+  border-style: dashed !important;
+  border-color: var(--rose-primary) !important;
+  color: var(--rose-dark) !important;
 }

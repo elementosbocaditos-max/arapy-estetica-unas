@@ -26,11 +26,11 @@ export default function ServicesScreen({ onNavigate }) {
     showToast
   } = useSaaS();
 
-  const { branding, services = [], operations = {} } = tenantDb;
+  const { branding = {}, categories = [], services = [], operations = {} } = tenantDb;
   const currency = operations.currencySymbol || '$';
 
   const [query, setQuery] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState('all'); // 'all' | 'unas' | 'pelo' | 'combos'
+  const [categoryFilter, setCategoryFilter] = useState('all');
 
   const goScreen = (scr) => {
     if (onNavigate) onNavigate(scr);
@@ -54,30 +54,28 @@ export default function ServicesScreen({ onNavigate }) {
   };
 
   const addNewServiceInline = () => {
+    const defaultCat =
+      categoryFilter !== 'all' ? categoryFilter : categories[0]?.id || 'general';
     const newSrv = {
       id: `srv-${Date.now()}`,
-      name: 'Nuevo Servicio (Editar)',
-      addonLabel: '+ detalle',
-      category: categoryFilter === 'all' ? 'unas' : categoryFilter,
+      name: 'Nuevo Trabajo / Servicio (Editar)',
+      addonLabel: '+ detalle (Editable)',
+      category: defaultCat,
       popularIcon: 'sparkles',
       isPopular: true,
       shortDesc: 'Descripción personalizada de tu servicio',
       price: 20000,
       durationMin: 60,
-      image: '/assets/inspo-rose-french.jpg'
+      image: './assets/inspo-rose-french.jpg'
     };
     persistTenantUpdate((prev) => ({
       ...prev,
       services: [newSrv, ...(prev.services || [])]
     }));
-    showToast('➕ Nuevo servicio creado. Podés cambiar su foto y texto.');
+    showToast('➕ Nuevo servicio agregado y guardado.');
   };
 
   const deleteServiceInline = (srvId) => {
-    if (services.length <= 1) {
-      showToast('Debe quedar al menos 1 servicio en el catálogo.');
-      return;
-    }
     persistTenantUpdate((prev) => ({
       ...prev,
       services: prev.services.filter((s) => s.id !== srvId)
@@ -85,9 +83,49 @@ export default function ServicesScreen({ onNavigate }) {
     showToast('🗑️ Servicio eliminado del catálogo');
   };
 
+  const addNewCategoryInline = () => {
+    const newId = `cat-${Date.now()}`;
+    const newCat = {
+      id: newId,
+      name: 'Nueva Categoría',
+      shortLabel: 'Nueva Cat.',
+      icon: '✨'
+    };
+    persistTenantUpdate((prev) => ({
+      ...prev,
+      categories: [...(prev.categories || []), newCat]
+    }));
+    setCategoryFilter(newId);
+    showToast('➕ Nueva categoría creada.');
+  };
+
+  const updateCategoryLabel = (catId, newLabel) => {
+    persistTenantUpdate((prev) => ({
+      ...prev,
+      categories: (prev.categories || []).map((c) =>
+        c.id === catId ? { ...c, shortLabel: newLabel, name: newLabel } : c
+      )
+    }));
+  };
+
+  const deleteCategoryInline = (catId) => {
+    persistTenantUpdate((prev) => ({
+      ...prev,
+      categories: (prev.categories || []).filter((c) => c.id !== catId)
+    }));
+    if (categoryFilter === catId) setCategoryFilter('all');
+    showToast('🗑️ Categoría quitada');
+  };
+
+  const cycleCategoryFilter = () => {
+    const order = ['all', ...categories.map((c) => c.id)];
+    const next = order[(order.indexOf(categoryFilter) + 1) % order.length];
+    setCategoryFilter(next);
+  };
+
   return (
     <div className="phone-screen services-screen">
-      {/* Curved Dusty Rose Header (Exact match to Reference 2 Right Screen) */}
+      {/* Curved Dusty Rose Header */}
       <div className="services-rose-header">
         <div className="phone-status-bar dark">
           <span className="status-time">7:41</span>
@@ -107,16 +145,28 @@ export default function ServicesScreen({ onNavigate }) {
           >
             <ChevronLeft size={20} />
           </button>
-          {liveEditMode && (
-            <button
-              type="button"
-              className="services-add-inline-btn"
-              onClick={addNewServiceInline}
-            >
-              <Plus size={14} />
-              <span>Agregar Servicio</span>
-            </button>
-          )}
+          <div style={{ display: 'flex', gap: 6 }}>
+            {liveEditMode && (
+              <>
+                <button
+                  type="button"
+                  className="services-add-inline-btn"
+                  onClick={addNewCategoryInline}
+                >
+                  <Plus size={13} />
+                  <span>+ Categoría</span>
+                </button>
+                <button
+                  type="button"
+                  className="services-add-inline-btn"
+                  onClick={addNewServiceInline}
+                >
+                  <Plus size={13} />
+                  <span>+ Trabajo</span>
+                </button>
+              </>
+            )}
+          </div>
         </div>
 
         <EditableText
@@ -140,38 +190,56 @@ export default function ServicesScreen({ onNavigate }) {
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Buscar servicio..."
+              placeholder={branding.searchPlaceholder || 'Buscar servicio...'}
             />
           </div>
           <button
             type="button"
             className="services-filter-square-btn"
-            onClick={() => {
-              const order = ['all', 'unas', 'pelo', 'combos'];
-              const next = order[(order.indexOf(categoryFilter) + 1) % order.length];
-              setCategoryFilter(next);
-            }}
-            title="Alternar filtro: Todos / Uñas / Pelo / Combos"
+            onClick={cycleCategoryFilter}
+            title="Alternar filtro por categoría"
           >
             <SlidersHorizontal size={17} />
           </button>
         </div>
 
-        {/* Category Filter Pills inside Header */}
+        {/* Dynamic Unlimited Category Filter Pills inside Header */}
         <div className="services-category-tabs">
-          {[
-            { id: 'all', label: 'Todos' },
-            { id: 'unas', label: '💅 Uñas' },
-            { id: 'pelo', label: '✂️ Peluquería' },
-            { id: 'combos', label: '✨ Combos' }
-          ].map((tab) => (
+          <button
+            type="button"
+            className={`srv-cat-pill ${categoryFilter === 'all' ? 'active' : ''}`}
+            onClick={() => setCategoryFilter('all')}
+          >
+            <EditableText
+              value={branding.allCategoriesLabel || 'Todos'}
+              onSave={(val) => updateBrandingField('allCategoriesLabel', val)}
+            />
+          </button>
+
+          {categories.map((cat) => (
             <button
-              key={tab.id}
+              key={cat.id}
               type="button"
-              className={`srv-cat-pill ${categoryFilter === tab.id ? 'active' : ''}`}
-              onClick={() => setCategoryFilter(tab.id)}
+              className={`srv-cat-pill ${categoryFilter === cat.id ? 'active' : ''}`}
+              onClick={() => setCategoryFilter(cat.id)}
             >
-              {tab.label}
+              <span>{cat.icon}</span>{' '}
+              <EditableText
+                value={cat.shortLabel || cat.name}
+                onSave={(val) => updateCategoryLabel(cat.id, val)}
+              />
+              {liveEditMode && (
+                <span
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    deleteCategoryInline(cat.id);
+                  }}
+                  style={{ marginLeft: 5, opacity: 0.85, cursor: 'pointer' }}
+                  title="Eliminar categoría"
+                >
+                  ✕
+                </span>
+              )}
             </button>
           ))}
         </div>
@@ -207,7 +275,7 @@ export default function ServicesScreen({ onNavigate }) {
                 <span className="service-row-price">
                   {currency}
                   <EditableText
-                    value={Number(srv.price).toLocaleString('es-AR')}
+                    value={Number(srv.price || 0).toLocaleString('es-AR')}
                     onSave={(val) =>
                       updateServiceField(
                         srv.id,
@@ -217,7 +285,20 @@ export default function ServicesScreen({ onNavigate }) {
                     }
                   />
                 </span>
-                <span className="service-row-duration">• {srv.durationMin} min</span>
+                <span className="service-row-duration">
+                  •{' '}
+                  <EditableText
+                    value={String(srv.durationMin || 60)}
+                    onSave={(val) =>
+                      updateServiceField(
+                        srv.id,
+                        'durationMin',
+                        Number(String(val).replace(/[^\d]/g, '')) || 30
+                      )
+                    }
+                  />{' '}
+                  min
+                </span>
               </div>
             </div>
 
@@ -227,7 +308,10 @@ export default function ServicesScreen({ onNavigate }) {
                 className="service-row-book-btn"
                 onClick={() => selectServiceAndGoToBooking(srv.id, false)}
               >
-                Reservar
+                <EditableText
+                  value={branding.bookButtonLabel || 'Reservar'}
+                  onSave={(val) => updateBrandingField('bookButtonLabel', val)}
+                />
               </button>
               {liveEditMode && (
                 <button

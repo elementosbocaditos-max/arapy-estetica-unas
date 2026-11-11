@@ -7,34 +7,20 @@ import {
   Check,
   Sparkles,
   Plus,
-  ChevronDown
+  ChevronDown,
+  MapPin,
+  Phone,
+  Clock
 } from 'lucide-react';
 import { useSaaS } from '../../context/SaaSContext';
 import EditableMedia from '../common/EditableMedia';
 import EditableText from '../common/EditableText';
 
-const QUICK_DATE_OPTIONS = [
-  'Hoy 11 Nov',
-  'Mañana 12 Nov',
-  'Jue 13 Nov',
-  'Vie 14 Nov',
-  'Sáb 15 Nov',
-  'Lun 17 Nov'
-];
-
-const QUICK_STYLE_SHAPES = [
-  'Almendra',
-  'Coffin',
-  'Squoval',
-  'Natural / Corto',
-  'Pelo Largo',
-  'Pelo Medio'
-];
-
 export default function BookingStudioSheet({ onNavigate }) {
   const {
     tenantDb,
     updateBrandingField,
+    updateOperationsField,
     persistTenantUpdate,
     selectedService,
     selectedServiceId,
@@ -53,17 +39,34 @@ export default function BookingStudioSheet({ onNavigate }) {
     pricingSummary,
     clientProfile,
     confirmAndSaveAppointment,
+    liveEditMode,
     setActiveScreen,
     showToast
   } = useSaaS();
 
-  const { branding, services = [], specialists = [], operations = {} } = tenantDb;
+  const {
+    branding = {},
+    services = [],
+    specialists = [],
+    operations = {}
+  } = tenantDb;
   const currency = operations.currencySymbol || '$';
+  const workOptions = operations.workOptions || [
+    'Almendra',
+    'Coffin',
+    'Squoval',
+    'Natural / Corto'
+  ];
+  const availableDates = operations.availableDates || ['Hoy', 'Mañana', 'Viernes', 'Sábado'];
+  const timeSlots = operations.timeSlots || ['10:00', '12:00', '15:00', '17:00'];
 
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showServiceSwitcher, setShowServiceSwitcher] = useState(false);
+  const [showSpecialistSwitcher, setShowSpecialistSwitcher] = useState(false);
   const [showCheckoutModal, setShowCheckoutModal] = useState(false);
-  const [clientNameInput, setClientNameInput] = useState(clientProfile.name || 'Mahi');
+  const [clientNameInput, setClientNameInput] = useState(
+    clientProfile.name || branding.defaultClientGreetingName || 'Clienta'
+  );
   const [clientPhoneInput, setClientPhoneInput] = useState(clientProfile.phone || '');
   const [clientNotesInput, setClientNotesInput] = useState('');
   const [copiedAlias, setCopiedAlias] = useState(false);
@@ -75,7 +78,7 @@ export default function BookingStudioSheet({ onNavigate }) {
   };
 
   const handleCopyAlias = () => {
-    navigator.clipboard?.writeText(operations.paymentAlias || 'DANIELA.STUDIO.MP');
+    navigator.clipboard?.writeText(operations.paymentAlias || 'TU.ALIAS.MP');
     setCopiedAlias(true);
     showToast('📋 ¡Alias copiado al portapapeles!');
     setTimeout(() => setCopiedAlias(false), 2500);
@@ -90,6 +93,43 @@ export default function BookingStudioSheet({ onNavigate }) {
     }));
   };
 
+  const handleAddWorkOptionInline = () => {
+    const label = `Nueva Opción ${workOptions.length + 1}`;
+    updateOperationsField('workOptions', [...workOptions, label]);
+    setSelectedNailShape(label);
+    showToast('➕ Opción de trabajo agregada');
+  };
+
+  const handleUpdateWorkOptionInline = (oldVal, newVal) => {
+    const clean = newVal.trim();
+    if (!clean) return;
+    const next = workOptions.map((o) => (o === oldVal ? clean : o));
+    updateOperationsField('workOptions', next);
+    if (selectedNailShape === oldVal) setSelectedNailShape(clean);
+  };
+
+  const handleDeleteWorkOptionInline = (val) => {
+    const next = workOptions.filter((o) => o !== val);
+    updateOperationsField('workOptions', next);
+    if (selectedNailShape === val && next[0]) setSelectedNailShape(next[0]);
+  };
+
+  const handleAddDateInline = () => {
+    const label = `Día ${availableDates.length + 1}`;
+    updateOperationsField('availableDates', [...availableDates, label]);
+    setSelectedDateLabel(label);
+    showToast('➕ Fecha disponible agregada');
+  };
+
+  const handleAddSlotInline = () => {
+    const label = '14:00';
+    if (!timeSlots.includes(label)) {
+      updateOperationsField('timeSlots', [...timeSlots, label].sort());
+    }
+    setSelectedTimeSlot(label);
+    showToast('➕ Horario agregado');
+  };
+
   const handleFinalConfirm = async (sendWa = true) => {
     const apt = await confirmAndSaveAppointment({
       customClientName: clientNameInput,
@@ -101,17 +141,9 @@ export default function BookingStudioSheet({ onNavigate }) {
     setShowCheckoutModal(false);
   };
 
-  const cycleSpecialist = () => {
-    if (specialists.length <= 1) return;
-    const idx = specialists.findIndex((s) => s.id === selectedSpecialistId);
-    const nextSpec = specialists[(idx + 1) % specialists.length];
-    setSelectedSpecialistId(nextSpec.id);
-    showToast(`👩‍🎨 Especialista: ${nextSpec.name}`);
-  };
-
   return (
     <div className="phone-screen booking-studio-screen">
-      {/* Top Dramatic Editorial Nail/Hair Hero Photo (Exact match to Reference 1 Left) */}
+      {/* Top Dramatic Editorial Nail/Hair Hero Photo */}
       <div className="booking-hero-top">
         <div className="phone-status-bar dark">
           <span className="status-time">9:41</span>
@@ -150,9 +182,9 @@ export default function BookingStudioSheet({ onNavigate }) {
         </div>
       </div>
 
-      {/* Cream Bottom Sheet Card (border-radius: 36px — Exact match to Reference 1 Left) */}
+      {/* Cream Bottom Sheet Card */}
       <div className="booking-cream-sheet">
-        {/* Inner Service & Stylist Summary Box */}
+        {/* Inner Service & Collaborator Summary Box */}
         <div className="booking-inner-service-card">
           <EditableMedia
             src={branding.studioInteriorImage || selectedService.image}
@@ -170,7 +202,14 @@ export default function BookingStudioSheet({ onNavigate }) {
                   confirmedApt ? 'confirmed' : 'unconfirmed'
                 }`}
               >
-                {confirmedApt ? `Confirmado #${confirmedApt.code}` : 'Unconfirmed'}
+                {confirmedApt ? (
+                  `Confirmado #${confirmedApt.code}`
+                ) : (
+                  <EditableText
+                    value={branding.bookingStatusUnconfirmed || 'Pendiente'}
+                    onSave={(val) => updateBrandingField('bookingStatusUnconfirmed', val)}
+                  />
+                )}
               </span>
 
               <button
@@ -178,7 +217,7 @@ export default function BookingStudioSheet({ onNavigate }) {
                 className="booking-change-srv-btn"
                 onClick={() => setShowServiceSwitcher((p) => !p)}
               >
-                <span>Cambiar</span>
+                <span>Cambiar Trabajo ({services.length})</span>
                 <ChevronDown size={12} />
               </button>
             </div>
@@ -192,44 +231,55 @@ export default function BookingStudioSheet({ onNavigate }) {
 
             <div className="booking-service-addon">
               <EditableText
-                value={selectedService.addonLabel || '+ mini patterns'}
+                value={selectedService.addonLabel || '+ detalle'}
                 onSave={(val) => handleUpdateServiceText('addonLabel', val)}
               />
             </div>
 
-            {/* Stylist Row with Verified Avatar */}
-            <div
-              className="booking-stylist-row"
-              onClick={cycleSpecialist}
-              title="Toca para cambiar de especialista"
-            >
-              <div className="booking-stylist-avatar-wrap">
-                <img
-                  src={selectedSpecialist.avatar}
-                  alt={selectedSpecialist.name}
-                  className="booking-stylist-avatar"
-                  onError={(e) => {
-                    e.currentTarget.src = '/assets/stylist-main.jpg';
-                  }}
-                />
-                <span className="booking-verified-dot">✓</span>
-              </div>
-              <div className="booking-stylist-meta">
-                <div className="booking-stylist-name">
-                  Stylist: {selectedSpecialist.name}
+            {/* Collaborator Row with Verified Avatar & Selector */}
+            {specialists.length > 0 && (
+              <div
+                className="booking-stylist-row"
+                onClick={() => setShowSpecialistSwitcher((p) => !p)}
+                title="Tocá para elegir colaborador/a"
+              >
+                <div className="booking-stylist-avatar-wrap">
+                  <img
+                    src={selectedSpecialist.avatar}
+                    alt={selectedSpecialist.name}
+                    className="booking-stylist-avatar"
+                    onError={(e) => {
+                      e.currentTarget.src = './assets/stylist-main.jpg';
+                    }}
+                  />
+                  <span className="booking-verified-dot">✓</span>
                 </div>
-                <div className="booking-stylist-studio">
-                  {selectedSpecialist.studioCode || branding.studioSubCode}
+                <div className="booking-stylist-meta">
+                  <div className="booking-stylist-name">
+                    <EditableText
+                      value={branding.bookingStylistPrefix || 'Profesional:'}
+                      onSave={(val) => updateBrandingField('bookingStylistPrefix', val)}
+                    />{' '}
+                    {selectedSpecialist.name} ▾
+                  </div>
+                  <div className="booking-stylist-studio">
+                    <EditableText
+                      value={selectedSpecialist.studioCode || branding.studioSubCode}
+                      onSave={(val) => updateBrandingField('studioSubCode', val)}
+                    />
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
           </div>
         </div>
 
-        {/* Optional Quick Service Switcher Dropdown (for Uñas or Peluquería) */}
+        {/* Expandable Service Selector (Unlimited Services) */}
         {showServiceSwitcher && (
           <div className="booking-inline-selector-box">
-            <div className="selector-box-label">Elegí Uñas, Peluquería o Combo:</div>
+            <div className="selector-box-label">
+              Elegí el trabajo a realizar ({services.length} disponibles):
+            </div>
             <div className="selector-chips-wrap">
               {services.map((srv) => (
                 <button
@@ -246,7 +296,7 @@ export default function BookingStudioSheet({ onNavigate }) {
                   <span>{srv.name}</span>
                   <strong>
                     {currency}
-                    {Number(srv.price).toLocaleString('es-AR')}
+                    {Number(srv.price || 0).toLocaleString('es-AR')}
                   </strong>
                 </button>
               ))}
@@ -254,9 +304,36 @@ export default function BookingStudioSheet({ onNavigate }) {
           </div>
         )}
 
-        {/* Quick Style / Shape Selector Pill Bar */}
+        {/* Expandable Collaborator Selector (Unlimited Collaborators) */}
+        {showSpecialistSwitcher && specialists.length > 0 && (
+          <div className="booking-inline-selector-box">
+            <div className="selector-box-label">
+              Elegí el/la Colaborador/a ({specialists.length}):
+            </div>
+            <div className="selector-chips-wrap">
+              {specialists.map((spec) => (
+                <button
+                  key={spec.id}
+                  type="button"
+                  className={`selector-chip ${
+                    spec.id === selectedSpecialistId ? 'active' : ''
+                  }`}
+                  onClick={() => {
+                    setSelectedSpecialistId(spec.id);
+                    setShowSpecialistSwitcher(false);
+                  }}
+                >
+                  <span>{spec.name}</span>
+                  <small>{spec.role}</small>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Unlimited Work Options / Shapes / Extras Strip */}
         <div className="booking-shape-strip">
-          {QUICK_STYLE_SHAPES.map((shape) => (
+          {workOptions.map((shape) => (
             <button
               key={shape}
               type="button"
@@ -265,9 +342,34 @@ export default function BookingStudioSheet({ onNavigate }) {
               }`}
               onClick={() => setSelectedNailShape(shape)}
             >
-              {shape}
+              <EditableText
+                value={shape}
+                onSave={(val) => handleUpdateWorkOptionInline(shape, val)}
+              />
+              {liveEditMode && (
+                <span
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDeleteWorkOptionInline(shape);
+                  }}
+                  style={{ marginLeft: 5, cursor: 'pointer' }}
+                  title="Quitar opción"
+                >
+                  ✕
+                </span>
+              )}
             </button>
           ))}
+          {liveEditMode && (
+            <button
+              type="button"
+              className="shape-mini-pill"
+              onClick={handleAddWorkOptionInline}
+              title="Agregar nueva opción de trabajo"
+            >
+              + Opción
+            </button>
+          )}
         </div>
 
         {/* Two-Column Metadata Row: "Added inspo" | "Selected date" */}
@@ -276,9 +378,14 @@ export default function BookingStudioSheet({ onNavigate }) {
           <div
             className="booking-meta-col left"
             onClick={() => goScreen('inspo')}
-            title="Toca para elegir o subir tus fotos en Add Inspo"
+            title="Tocá para elegir o subir tus fotos en Add Inspo"
           >
-            <div className="meta-col-label">Added inspo</div>
+            <div className="meta-col-label">
+              <EditableText
+                value={branding.bookingAddedInspoLabel || 'Added inspo'}
+                onSave={(val) => updateBrandingField('bookingAddedInspoLabel', val)}
+              />
+            </div>
             <div className="added-inspo-avatar-stack">
               {resolvedAddedInspoPhotos.slice(0, 3).map((imgUrl, idx) => (
                 <img
@@ -287,7 +394,7 @@ export default function BookingStudioSheet({ onNavigate }) {
                   alt="inspo"
                   className="stacked-inspo-circle"
                   onError={(e) => {
-                    e.currentTarget.src = '/assets/inspo-rose-french.jpg';
+                    e.currentTarget.src = './assets/inspo-rose-french.jpg';
                   }}
                 />
               ))}
@@ -314,23 +421,26 @@ export default function BookingStudioSheet({ onNavigate }) {
           <div
             className="booking-meta-col right"
             onClick={() => setShowDatePicker((p) => !p)}
-            title="Toca para elegir día y horario"
+            title="Tocá para elegir día y horario"
           >
             <div className="meta-col-label">
               <Calendar size={13} />
-              <span>Selected date</span>
+              <EditableText
+                value={branding.bookingSelectedDateLabel || 'Fecha y Hora'}
+                onSave={(val) => updateBrandingField('bookingSelectedDateLabel', val)}
+              />
             </div>
-            <div className="selected-date-bold">{selectedDateLabel}</div>
-            <div className="selected-time-sub">{computedTimeRange}</div>
+            <div className="selected-date-bold">{selectedDateLabel} ▾</div>
+            <div className="selected-time-sub">{computedTimeRange} hs</div>
           </div>
         </div>
 
         {/* Expandable Interactive Date & Time Picker */}
         {showDatePicker && (
           <div className="booking-inline-date-picker">
-            <div className="picker-sub-title">Elegí el Día:</div>
+            <div className="picker-sub-title">Elegí el Día Disponible:</div>
             <div className="picker-pills-row">
-              {QUICK_DATE_OPTIONS.map((d) => (
+              {availableDates.map((d) => (
                 <button
                   key={d}
                   type="button"
@@ -340,38 +450,83 @@ export default function BookingStudioSheet({ onNavigate }) {
                   {d}
                 </button>
               ))}
+              {liveEditMode && (
+                <button
+                  type="button"
+                  className="picker-pill"
+                  onClick={handleAddDateInline}
+                >
+                  + Día
+                </button>
+              )}
             </div>
             <div className="picker-sub-title" style={{ marginTop: 8 }}>
               Elegí el Horario Disponible:
             </div>
             <div className="picker-pills-row">
-              {(operations.timeSlots || ['10:00', '12:00', '15:00', '17:00']).map(
-                (slot) => (
-                  <button
-                    key={slot}
-                    type="button"
-                    className={`picker-pill ${selectedTimeSlot === slot ? 'active' : ''}`}
-                    onClick={() => {
-                      setSelectedTimeSlot(slot);
-                      setShowDatePicker(false);
-                    }}
-                  >
-                    {slot} hs
-                  </button>
-                )
+              {timeSlots.map((slot) => (
+                <button
+                  key={slot}
+                  type="button"
+                  className={`picker-pill ${selectedTimeSlot === slot ? 'active' : ''}`}
+                  onClick={() => {
+                    setSelectedTimeSlot(slot);
+                    setShowDatePicker(false);
+                  }}
+                >
+                  {slot} hs
+                </button>
+              ))}
+              {liveEditMode && (
+                <button
+                  type="button"
+                  className="picker-pill"
+                  onClick={handleAddSlotInline}
+                >
+                  + Hora
+                </button>
               )}
             </div>
           </div>
         )}
 
-        {/* Primary Lilac/Rose Pill CTA Button ("Pay 48.99$" / Seña 50%) */}
+        {/* Editable Salon Location, Hours & Phone Strip inside Booking Card */}
+        <div className="booking-contact-mini-strip">
+          <span>
+            <MapPin size={11} />{' '}
+            <EditableText
+              value={operations.address || 'Dirección (Editable)'}
+              onSave={(val) => updateOperationsField('address', val)}
+            />
+          </span>
+          <span>
+            <Clock size={11} />{' '}
+            <EditableText
+              value={operations.businessHoursText || 'Horarios (Editable)'}
+              onSave={(val) => updateOperationsField('businessHoursText', val)}
+            />
+          </span>
+          <span>
+            <Phone size={11} />{' '}
+            <EditableText
+              value={operations.phoneDisplay || operations.whatsappNumber || 'Teléfono'}
+              onSave={(val) => updateOperationsField('phoneDisplay', val)}
+            />
+          </span>
+        </div>
+
+        {/* Primary Lilac/Rose Pill CTA Button */}
         <button
           type="button"
           className="booking-pay-pill-btn"
           onClick={() => setShowCheckoutModal(true)}
         >
           <span>
-            Confirmar • Seña {pricingSummary.depositPct}% ({currency}
+            <EditableText
+              value={branding.bookingConfirmButtonPrefix || 'Confirmar Turno • Seña'}
+              onSave={(val) => updateBrandingField('bookingConfirmButtonPrefix', val)}
+            />{' '}
+            {pricingSummary.depositPct}% ({currency}
             {pricingSummary.depositAmount.toLocaleString('es-AR')})
           </span>
         </button>
@@ -394,7 +549,7 @@ export default function BookingStudioSheet({ onNavigate }) {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="checkout-drawer-header">
-              <h4>Confirmar tu Turno</h4>
+              <h4>Confirmar Reserva — {branding.businessName}</h4>
               <button
                 type="button"
                 className="drawer-close-btn"
@@ -408,7 +563,10 @@ export default function BookingStudioSheet({ onNavigate }) {
               <div>
                 <strong>{selectedService.name}</strong> ({selectedNailShape})
                 <div className="checkout-summary-sub">
-                  {selectedDateLabel} • {computedTimeRange} con {selectedSpecialist.name}
+                  {selectedDateLabel} • {computedTimeRange} hs • {selectedSpecialist.name}
+                </div>
+                <div className="checkout-summary-sub">
+                  📍 {operations.address} • 📞 {operations.phoneDisplay || operations.whatsappNumber}
                 </div>
               </div>
               <div className="checkout-price-box">
@@ -426,8 +584,19 @@ export default function BookingStudioSheet({ onNavigate }) {
                 <div className="alias-label">
                   Transferí la seña a ({operations.paymentBankName}):
                 </div>
-                <div className="alias-value">{operations.paymentAlias}</div>
-                <div className="alias-holder">Titular: {operations.paymentHolder}</div>
+                <div className="alias-value">
+                  <EditableText
+                    value={operations.paymentAlias}
+                    onSave={(val) => updateOperationsField('paymentAlias', val)}
+                  />
+                </div>
+                <div className="alias-holder">
+                  Titular:{' '}
+                  <EditableText
+                    value={operations.paymentHolder}
+                    onSave={(val) => updateOperationsField('paymentHolder', val)}
+                  />
+                </div>
               </div>
               <button
                 type="button"
@@ -446,25 +615,25 @@ export default function BookingStudioSheet({ onNavigate }) {
                   type="text"
                   value={clientNameInput}
                   onChange={(e) => setClientNameInput(e.target.value)}
-                  placeholder="Ej: Sofía"
+                  placeholder="Ingresá tu nombre"
                 />
               </label>
               <label>
-                Tu WhatsApp
+                Tu Teléfono / WhatsApp
                 <input
                   type="tel"
                   value={clientPhoneInput}
                   onChange={(e) => setClientPhoneInput(e.target.value)}
-                  placeholder="Ej: 11 5555 1234"
+                  placeholder="Ingresá tu teléfono"
                 />
               </label>
               <label>
-                Comentario opcional (color, largo, detalle)
+                Observaciones para el turno (opcional)
                 <input
                   type="text"
                   value={clientNotesInput}
                   onChange={(e) => setClientNotesInput(e.target.value)}
-                  placeholder="Ej: Quiero tono milky con deco en 2 uñas"
+                  placeholder="Detalle adicional sobre el trabajo deseado"
                 />
               </label>
             </div>

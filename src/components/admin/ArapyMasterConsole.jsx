@@ -9,7 +9,8 @@ import {
   Copy,
   ExternalLink,
   ShieldCheck,
-  Settings
+  Settings,
+  Trash2
 } from 'lucide-react';
 import { useSaaS } from '../../context/SaaSContext';
 
@@ -19,6 +20,8 @@ export default function ArapyMasterConsole() {
     activeSlug,
     switchTenant,
     createNewTenantFromArapy,
+    updateTenantMetaFromArapy,
+    deleteTenantFromArapy,
     toggleTenantStatusFromArapy,
     activeModal,
     setActiveModal,
@@ -27,20 +30,20 @@ export default function ArapyMasterConsole() {
 
   const [newBusinessName, setNewBusinessName] = useState('');
   const [newOwnerName, setNewOwnerName] = useState('');
-  const [newWhatsapp, setNewWhatsapp] = useState('5491123456789');
-  const [newCity, setNewCity] = useState('Argentina');
+  const [newWhatsapp, setNewWhatsapp] = useState('5491100000000');
+  const [newCity, setNewCity] = useState('Dirección / Ciudad');
 
   if (activeModal !== 'arapy') return null;
 
   const handleCreateTenant = async (e) => {
     e.preventDefault();
     if (!newBusinessName.trim()) {
-      showToast('Ingresá el nombre del nuevo negocio / cliente');
+      showToast('Ingresá el nombre comercial del nuevo cliente');
       return;
     }
     const createdSlug = await createNewTenantFromArapy({
       businessName: newBusinessName.trim(),
-      ownerName: newOwnerName.trim() || 'Dueña del Salón',
+      ownerName: newOwnerName.trim() || 'Titular del Negocio',
       whatsappNumber: newWhatsapp.trim(),
       city: newCity.trim(),
       plan: 'PRO IA FULL'
@@ -60,7 +63,7 @@ export default function ArapyMasterConsole() {
     navigator.clipboard?.writeText(link);
     showToast(
       isOwner
-        ? `🔐 Link de Dueño copiado para ${slug}`
+        ? `🔐 Link de Panel de Dueño copiado para ${slug}`
         : `🔗 Link de Tienda Pública copiado para ${slug}`
     );
   };
@@ -76,7 +79,7 @@ export default function ArapyMasterConsole() {
             <div className="admin-badge-row">
               <span className="arapy-master-pill">
                 <ShieldCheck size={13} />
-                <span>CONSOLA CENTRAL ARAPY • MULTI-NEGOCIOS</span>
+                <span>CONSOLA CENTRAL ARAPY • CLIENTES ILIMITADOS</span>
               </span>
             </div>
             <h2>Panel Maestro ARAPY — Control de Clientes y Bases de Datos</h2>
@@ -103,38 +106,38 @@ export default function ArapyMasterConsole() {
 
         <div className="admin-tab-content">
           <div className="admin-grid-2col">
-            {/* Left: Provision New Client with Isolated DB */}
+            {/* Left: Provision Unlimited New Clients with Isolated DB */}
             <div className="admin-panel-box">
-              <h3>➕ Dar de Alta Nuevo Cliente Comercial (Crea su propia Base de Datos)</h3>
+              <h3>➕ Dar de Alta Nuevo Cliente Comercial (Sin Límite de Clientes)</h3>
               <p>
-                Cada cliente que creás acá recibe su propia base de datos aislada en disco (
-                <code>server_data/tenants/&lt;slug&gt;.json</code>), su propio espacio de fotos y
-                sus links listos para venderle el servicio:
+                Cada cliente que creás acá recibe su propia base de datos independiente (
+                <code>arapy_tenant_db::&lt;slug&gt;</code>), su propio espacio de fotos,
+                categorías, colaboradores y sus links exclusivos:
               </p>
 
               <form className="admin-form-stack" onSubmit={handleCreateTenant}>
                 <label>
-                  Nombre Comercial del Salón / Centro de Estética
+                  Nombre Comercial del Salón / Tienda (Editable)
                   <input
                     type="text"
                     value={newBusinessName}
                     onChange={(e) => setNewBusinessName(e.target.value)}
-                    placeholder="Ej: Estética Sofía Nails & Hair"
+                    placeholder="Ej: Mi Salón de Uñas & Peluquería"
                     required
                   />
                 </label>
                 <label>
-                  Nombre de tu Cliente (Dueña/o del Salón)
+                  Nombre del/la Titular del Salón (Editable)
                   <input
                     type="text"
                     value={newOwnerName}
                     onChange={(e) => setNewOwnerName(e.target.value)}
-                    placeholder="Ej: Sofía López"
+                    placeholder="Ej: Titular del Negocio"
                   />
                 </label>
                 <div className="admin-row-2">
                   <label>
-                    WhatsApp del Salón
+                    Teléfono / WhatsApp del Salón
                     <input
                       type="text"
                       value={newWhatsapp}
@@ -143,19 +146,19 @@ export default function ArapyMasterConsole() {
                     />
                   </label>
                   <label>
-                    Ciudad / Sucursal
+                    Dirección / Ciudad / Sucursal
                     <input
                       type="text"
                       value={newCity}
                       onChange={(e) => setNewCity(e.target.value)}
-                      placeholder="Ej: Posadas / CABA"
+                      placeholder="Ej: Av. Principal 123"
                     />
                   </label>
                 </div>
 
                 <button type="submit" className="admin-primary-btn full-width-btn">
                   <Plus size={16} />
-                  <span>Crear Nuevo Negocio + Aprovisionar Base de Datos Propia</span>
+                  <span>Crear Nuevo Cliente + Base de Datos Independiente</span>
                 </button>
               </form>
             </div>
@@ -163,7 +166,7 @@ export default function ArapyMasterConsole() {
             {/* Right: List of All Registered Businesses in ARAPY */}
             <div className="admin-panel-box">
               <h3>
-                🏢 Negocios Adheridos a tu Red ARAPY ({registry.tenants?.length || 0})
+                🏢 Clientes / Negocios Activos en tu Red ARAPY ({registry.tenants?.length || 0})
               </h3>
               <div className="arapy-tenants-list">
                 {(registry.tenants || []).map((t) => {
@@ -178,16 +181,58 @@ export default function ArapyMasterConsole() {
                       }`}
                     >
                       <div className="arapy-tenant-top">
-                        <div>
+                        <div style={{ flex: 1 }}>
                           <div className="arapy-tenant-title-row">
                             <Building2 size={16} />
-                            <strong>{t.businessName}</strong>
+                            <input
+                              type="text"
+                              value={t.businessName || ''}
+                              onChange={(e) =>
+                                updateTenantMetaFromArapy(t.slug, {
+                                  businessName: e.target.value
+                                })
+                              }
+                              style={{
+                                border: '1px solid #dfd7d8',
+                                borderRadius: 8,
+                                padding: '4px 8px',
+                                fontWeight: 700,
+                                fontSize: 13,
+                                minWidth: 210
+                              }}
+                              title="Editar nombre del negocio"
+                            />
                             {isCurrent && (
                               <span className="current-active-tag">EN PANTALLA</span>
                             )}
                           </div>
-                          <div className="arapy-tenant-meta">
-                            <span>Dueña/o: {t.ownerName}</span> •{' '}
+                          <div
+                            className="arapy-tenant-meta"
+                            style={{
+                              display: 'flex',
+                              gap: 8,
+                              alignItems: 'center',
+                              flexWrap: 'wrap',
+                              marginTop: 6
+                            }}
+                          >
+                            <span>Titular:</span>
+                            <input
+                              type="text"
+                              value={t.ownerName || ''}
+                              onChange={(e) =>
+                                updateTenantMetaFromArapy(t.slug, {
+                                  ownerName: e.target.value
+                                })
+                              }
+                              style={{
+                                border: '1px solid #e5dedf',
+                                borderRadius: 6,
+                                padding: '2px 6px',
+                                fontSize: 11.5
+                              }}
+                              title="Editar nombre del titular"
+                            />
                             <span>
                               <Database size={11} /> {t.dbNamespace}
                             </span>
@@ -209,7 +254,7 @@ export default function ArapyMasterConsole() {
                           }}
                         >
                           <ExternalLink size={12} />
-                          <span>Abrir App de este Cliente</span>
+                          <span>Abrir App</span>
                         </button>
 
                         <button
@@ -244,6 +289,16 @@ export default function ArapyMasterConsole() {
                         >
                           {isSuspended ? <CheckCircle2 size={12} /> : <Ban size={12} />}
                           <span>{isSuspended ? 'Reactivar' : 'Suspender'}</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          className="arapy-action-chip suspend"
+                          onClick={() => deleteTenantFromArapy(t.slug)}
+                          title="Eliminar este cliente y su base de datos"
+                        >
+                          <Trash2 size={12} />
+                          <span>Eliminar</span>
                         </button>
                       </div>
                     </div>

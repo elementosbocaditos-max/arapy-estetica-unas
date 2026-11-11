@@ -1,4 +1,12 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useCallback,
+  useMemo,
+  useRef
+} from 'react';
 import {
   DEFAULT_MASTER_REGISTRY,
   createTenantSeedDatabase,
@@ -7,8 +15,10 @@ import {
 import {
   loadMasterRegistry,
   saveMasterRegistry,
+  getSynchronousTenantSnapshot,
   loadTenantDatabase,
   saveTenantDatabase,
+  deleteTenantDatabaseCompletely,
   resetTenantDatabaseOnDisk,
   compressAndUploadImage,
   loadClientProfileMemory,
@@ -21,18 +31,27 @@ export function SaaSProvider({ children }) {
   // Determine initial tenant slug from URL (?salon=slug)
   const getInitialSlug = () => {
     const params = new URLSearchParams(window.location.search);
-    return (params.get('salon') || 'daniela-gimenez').trim().toLowerCase();
+    return (params.get('salon') || 'estudio-principal').trim().toLowerCase();
   };
 
   const [registry, setRegistry] = useState(DEFAULT_MASTER_REGISTRY);
+  const registryRef = useRef(DEFAULT_MASTER_REGISTRY);
+
   const [activeSlug, setActiveSlug] = useState(getInitialSlug);
-  const [tenantDb, setTenantDb] = useState(() => createTenantSeedDatabase(getInitialSlug()));
+
+  const [tenantDb, setTenantDb] = useState(() => {
+    const initSlug = getInitialSlug();
+    const cached = getSynchronousTenantSnapshot(initSlug);
+    return cached && cached.slug ? cached : createTenantSeedDatabase(initSlug);
+  });
+  const tenantDbRef = useRef(tenantDb);
+
   const [isLoadingDb, setIsLoadingDb] = useState(true);
   const [saveStatus, setSaveStatus] = useState({
     saving: false,
     diskSaved: true,
     lastSavedAt: new Date().toISOString(),
-    message: 'Sincronizado en disco'
+    message: 'Datos sincronizados y guardados'
   });
 
   // Navigation & View Modes:
@@ -53,11 +72,14 @@ export function SaaSProvider({ children }) {
 
   // End-Client Booking Draft State
   const [clientProfile, setClientProfile] = useState(() =>
-    loadClientProfileMemory(getInitialSlug())
+    loadClientProfileMemory(
+      getInitialSlug(),
+      tenantDb?.branding?.defaultClientGreetingName || 'Clienta'
+    )
   );
   const [selectedServiceId, setSelectedServiceId] = useState('srv-manicure-3d');
   const [selectedSpecialistId, setSelectedSpecialistId] = useState('spec-1');
-  const [selectedDateLabel, setSelectedDateLabel] = useState('Lun 12:11');
+  const [selectedDateLabel, setSelectedDateLabel] = useState('Hoy');
   const [selectedTimeSlot, setSelectedTimeSlot] = useState('12:00');
   const [selectedNailShape, setSelectedNailShape] = useState('Almendra');
   const [addedInspoIds, setAddedInspoIds] = useState(['inspo-1', 'inspo-2', 'inspo-3']);
@@ -73,33 +95,92 @@ export function SaaSProvider({ children }) {
     }, 3400);
   }, []);
 
-  // Load Master Registry & Active Tenant Database from Disk + IndexedDB
+  // Keep refs synced at all times
+  useEffect(() => {
+    tenantDbRef.current = tenantDb;
+  }, [tenantDb]);
+
+  useEffect(() => {
+    registryRef.current = registry;
+  }, [registry]);
+
+  // Load Master Registry & Active Tenant Database from Disk + IndexedDB + LocalStorage
   useEffect(() => {
     let mounted = true;
     async function boot() {
       setIsLoadingDb(true);
       const reg = await loadMasterRegistry(DEFAULT_MASTER_REGISTRY);
       if (!mounted) return;
+      registryRef.current = reg;
       setRegistry(reg);
 
       const tenantMeta = reg.tenants.find((t) => t.slug === activeSlug) || {};
-      const db = await loadTenantDatabase(activeSlug, (slug) =>
+      const loadedDb = await loadTenantDatabase(activeSlug, (slug) =>
         createTenantSeedDatabase(slug, tenantMeta)
       );
       if (!mounted) return;
 
-      setTenantDb(db);
-      setClientProfile(loadClientProfileMemory(activeSlug));
+      // Ensure legacy records always have categories, workOptions, availableDates arrays
+      const normalizedDb = {
+        ...loadedDb,
+        categories:
+          Array.isArray(loadedDb.categories) && loadedDb.categories.length > 0
+            ? loadedDb.categories
+            : createTenantSeedDatabase(activeSlug).categories,
+        operations: {
+          ...createTenantSeedDatabase(activeSlug).operations,
+          ...(loadedDb.operations || {})
+        },
+        branding: {
+          ...createTenantSeedDatabase(activeSlug).branding,
+          ...(loadedDb.branding || {})
+        }
+      };
+
+      tenantDbRef.current = normalizedDb;
+      setTenantDb(normalizedDb);
+      setClientProfile(
+        loadClientProfileMemory(
+          activeSlug,
+          normalizedDb.branding?.defaultClientGreetingName || 'Clienta'
+        )
+      );
 
       // Ensure selected IDs exist in this tenant's catalog
-      if (db.services?.length) {
-        setSelectedServiceId(db.services[0].id);
+      if (normalizedDb.services?.length) {
+        setSelectedServiceId((prev) =>
+          normalizedDb.services.some((s) => s.id === prev)
+            ? prev
+            : normalizedDb.services[0].id
+        );
       }
-      if (db.specialists?.length) {
-        setSelectedSpecialistId(db.specialists[0].id);
+      if (normalizedDb.specialists?.length) {
+        setSelectedSpecialistId((prev) =>
+          normalizedDb.specialists.some((s) => s.id === prev)
+            ? prev
+            : normalizedDb.specialists[0].id
+        );
       }
-      if (db.inspoGallery?.length) {
-        setAddedInspoIds(db.inspoGallery.slice(0, 3).map((i) => i.id));
+      if (normalizedDb.operations?.availableDates?.length) {
+        setSelectedDateLabel((prev) =>
+          normalizedDb.operations.availableDates.includes(prev)
+            ? prev
+            : normalizedDb.operations.availableDates[0]
+        );
+      }
+      if (normalizedDb.operations?.timeSlots?.length) {
+        setSelectedTimeSlot((prev) =>
+          normalizedDb.operations.timeSlots.includes(prev)
+            ? prev
+            : normalizedDb.operations.timeSlots[0]
+        );
+      }
+      if (normalizedDb.operations?.workOptions?.length) {
+        setSelectedNailShape((prev) =>
+          normalizedDb.operations.workOptions.includes(prev)
+            ? prev
+            : normalizedDb.operations.workOptions[0]
+        );
       }
 
       setIsLoadingDb(false);
@@ -123,45 +204,67 @@ export function SaaSProvider({ children }) {
     root.style.setProperty('--sheet-cream', colors.sheetCream || '#F7F2EE');
     root.style.setProperty('--studio-dark', colors.studioDark || '#191412');
     root.style.setProperty('--splash-dark', colors.splashDark || '#0F0C0D');
-    document.title = `${tenantDb?.branding?.businessName || 'Beauty Studio'} — Turnos con IA`;
+    document.title = `${tenantDb?.branding?.businessName || 'Estudio de Belleza'} — Turnos Online`;
   }, [tenantDb]);
 
-  // Core Persistence Mutator: saves immediately to Disk + IndexedDB
+  // Core Persistence Mutator: synchronously computes next state via tenantDbRef and saves to LocalStorage + IndexedDB + Disk
   const persistTenantUpdate = useCallback(
-    async (updater, statusText = 'Guardado en Base de Datos y Disco') => {
-      setSaveStatus((prev) => ({ ...prev, saving: true, message: 'Guardando en disco...' }));
-      let nextDb = null;
-      setTenantDb((prev) => {
-        nextDb = typeof updater === 'function' ? updater(prev) : updater;
-        return nextDb;
-      });
+    async (updater, statusText = 'Guardado permanentemente') => {
+      setSaveStatus((prev) => ({ ...prev, saving: true, message: 'Guardando cambios...' }));
 
-      if (nextDb) {
-        const res = await saveTenantDatabase(activeSlug, nextDb);
-        // Also keep businessName in Master Registry synced if it changed
-        if (nextDb.branding?.businessName) {
-          setRegistry((prevReg) => {
-            const updatedTenants = prevReg.tenants.map((t) =>
+      const currentDb = tenantDbRef.current;
+      const nextDb = typeof updater === 'function' ? updater(currentDb) : updater;
+
+      if (!nextDb) return;
+
+      tenantDbRef.current = nextDb;
+      setTenantDb(nextDb);
+
+      const res = await saveTenantDatabase(activeSlug, nextDb);
+
+      // Sync businessName, ownerName, phone, city in Master Registry if changed
+      if (nextDb.branding?.businessName) {
+        const currentReg = registryRef.current;
+        const existsInReg = (currentReg.tenants || []).some((t) => t.slug === activeSlug);
+        const updatedTenants = existsInReg
+          ? currentReg.tenants.map((t) =>
               t.slug === activeSlug
                 ? {
                     ...t,
                     businessName: nextDb.branding.businessName,
                     ownerName: nextDb.operations?.paymentHolder || t.ownerName,
+                    whatsappNumber: nextDb.operations?.whatsappNumber || t.whatsappNumber,
                     status: nextDb.status || t.status
                   }
                 : t
-            );
-            saveMasterRegistry(updatedTenants, prevReg.arapyConfig);
-            return { ...prevReg, tenants: updatedTenants };
-          });
-        }
-        setSaveStatus({
-          saving: false,
-          diskSaved: res.diskSaved,
-          lastSavedAt: res.updatedAt,
-          message: statusText
-        });
+            )
+          : [
+              ...(currentReg.tenants || []),
+              {
+                slug: activeSlug,
+                businessName: nextDb.branding.businessName,
+                ownerName: nextDb.operations?.paymentHolder || 'Titular',
+                ownerPin: nextDb.ownerPin || '1234',
+                plan: nextDb.plan || 'PRO IA FULL',
+                status: nextDb.status || 'active',
+                city: nextDb.operations?.address || 'Local Principal',
+                createdAt: new Date().toISOString(),
+                dbNamespace: `arapy_tenant_db::${activeSlug}`
+              }
+            ];
+
+        const nextReg = { ...currentReg, tenants: updatedTenants };
+        registryRef.current = nextReg;
+        setRegistry(nextReg);
+        await saveMasterRegistry(updatedTenants, currentReg.arapyConfig);
       }
+
+      setSaveStatus({
+        saving: false,
+        diskSaved: res.diskSaved,
+        lastSavedAt: res.updatedAt,
+        message: statusText
+      });
     },
     [activeSlug]
   );
@@ -177,7 +280,7 @@ export function SaaSProvider({ children }) {
             [field]: value
           }
         }),
-        `Actualizado: ${field}`
+        `Guardado: ${field}`
       );
     },
     [persistTenantUpdate]
@@ -193,7 +296,7 @@ export function SaaSProvider({ children }) {
             [field]: value
           }
         }),
-        `Operación actualizada: ${field}`
+        `Guardado: ${field}`
       );
     },
     [persistTenantUpdate]
@@ -211,7 +314,7 @@ export function SaaSProvider({ children }) {
             colors: { ...preset }
           }
         }),
-        `Tema aplicado: ${preset.name}`
+        `Paleta aplicada: ${preset.name}`
       );
       showToast(`🎨 Paleta cambiada a "${preset.name}"`);
     },
@@ -232,29 +335,29 @@ export function SaaSProvider({ children }) {
             }
           }
         }),
-        `Color personalizado guardado`
+        'Color personalizado guardado'
       );
     },
     [persistTenantUpdate]
   );
 
-  // Upload any photo from phone/PC and save permanently to /public/uploads/<slug>/ + DB
+  // Upload any photo from phone/PC and save permanently
   const uploadAndSaveImage = useCallback(
     async (file, label = 'photo') => {
       if (!file) return null;
       setSaveStatus((prev) => ({
         ...prev,
         saving: true,
-        message: 'Subiendo y optimizando foto en disco...'
+        message: 'Optimizando y guardando foto...'
       }));
       const uploaded = await compressAndUploadImage(file, activeSlug, label);
       setSaveStatus({
         saving: false,
         diskSaved: uploaded.persistedOnDisk,
         lastSavedAt: uploaded.savedAt,
-        message: '📷 Foto guardada en el servidor'
+        message: '📷 Foto guardada permanentemente'
       });
-      showToast('📷 Foto subida y guardada permanentemente');
+      showToast('📷 Foto guardada en la base de datos del negocio');
       return uploaded.url;
     },
     [activeSlug, showToast]
@@ -268,14 +371,15 @@ export function SaaSProvider({ children }) {
       url.searchParams.set('salon', clean);
       window.history.pushState({}, '', url.toString());
       setActiveSlug(clean);
-      showToast(`🏢 Cambiado a la base de datos de: ${clean}`);
+      showToast(`🏢 Base de datos activa: ${clean}`);
     },
     [showToast]
   );
 
+  // Unlimited Clients CRUD in ARAPY Master Console
   const createNewTenantFromArapy = useCallback(
     async ({ businessName, slug, ownerName, ownerPin, whatsappNumber, city, plan }) => {
-      const cleanSlug = String(slug || businessName)
+      const cleanSlug = String(slug || businessName || `cliente-${Date.now()}`)
         .toLowerCase()
         .normalize('NFD')
         .replace(/[\u0300-\u036f]/g, '')
@@ -286,12 +390,13 @@ export function SaaSProvider({ children }) {
 
       const newTenantEntry = {
         slug: cleanSlug,
-        businessName: businessName || 'Nuevo Estudio de Belleza',
-        ownerName: ownerName || 'Dueña del Salón',
+        businessName: businessName || 'Nombre de tu Salón (Editable)',
+        ownerName: ownerName || 'Titular del Negocio (Editable)',
         ownerPin: ownerPin || '1234',
         plan: plan || 'PRO IA FULL',
         status: 'active',
-        city: city || 'Argentina',
+        city: city || 'Dirección / Ciudad (Editable)',
+        whatsappNumber: whatsappNumber || '5491100000000',
         createdAt: new Date().toISOString(),
         dbNamespace: `arapy_tenant_db::${cleanSlug}`
       };
@@ -300,51 +405,101 @@ export function SaaSProvider({ children }) {
         businessName: newTenantEntry.businessName,
         ownerName: newTenantEntry.ownerName,
         ownerPin: newTenantEntry.ownerPin,
-        whatsappNumber: whatsappNumber || '5491123456789',
+        whatsappNumber: newTenantEntry.whatsappNumber,
+        address: newTenantEntry.city,
         status: 'active',
         plan: newTenantEntry.plan
       });
 
       await saveTenantDatabase(cleanSlug, freshDb);
 
+      const currentReg = registryRef.current;
       const nextTenants = [
-        ...registry.tenants.filter((t) => t.slug !== cleanSlug),
+        ...(currentReg.tenants || []).filter((t) => t.slug !== cleanSlug),
         newTenantEntry
       ];
-      await saveMasterRegistry(nextTenants, registry.arapyConfig);
-      setRegistry((prev) => ({ ...prev, tenants: nextTenants }));
+      const nextReg = { ...currentReg, tenants: nextTenants };
+      registryRef.current = nextReg;
+      setRegistry(nextReg);
+      await saveMasterRegistry(nextTenants, currentReg.arapyConfig);
       switchTenant(cleanSlug);
       return cleanSlug;
     },
-    [registry, switchTenant]
+    [switchTenant]
+  );
+
+  const updateTenantMetaFromArapy = useCallback(
+    async (targetSlug, patch) => {
+      const currentReg = registryRef.current;
+      const nextTenants = (currentReg.tenants || []).map((t) =>
+        t.slug === targetSlug ? { ...t, ...patch } : t
+      );
+      const nextReg = { ...currentReg, tenants: nextTenants };
+      registryRef.current = nextReg;
+      setRegistry(nextReg);
+      await saveMasterRegistry(nextTenants, currentReg.arapyConfig);
+
+      if (targetSlug === activeSlug) {
+        await persistTenantUpdate((prev) => ({
+          ...prev,
+          status: patch.status ?? prev.status,
+          branding: {
+            ...prev.branding,
+            businessName: patch.businessName ?? prev.branding.businessName
+          },
+          operations: {
+            ...prev.operations,
+            paymentHolder: patch.ownerName ?? prev.operations.paymentHolder,
+            whatsappNumber: patch.whatsappNumber ?? prev.operations.whatsappNumber
+          }
+        }));
+      }
+    },
+    [activeSlug, persistTenantUpdate]
   );
 
   const toggleTenantStatusFromArapy = useCallback(
     async (targetSlug, nextStatus) => {
-      const nextTenants = registry.tenants.map((t) =>
-        t.slug === targetSlug ? { ...t, status: nextStatus } : t
-      );
-      await saveMasterRegistry(nextTenants, registry.arapyConfig);
-      setRegistry((prev) => ({ ...prev, tenants: nextTenants }));
-      if (targetSlug === activeSlug) {
-        persistTenantUpdate((prev) => ({ ...prev, status: nextStatus }), `Estado: ${nextStatus}`);
-      }
+      await updateTenantMetaFromArapy(targetSlug, { status: nextStatus });
       showToast(`Estado de ${targetSlug}: ${nextStatus.toUpperCase()}`);
     },
-    [registry, activeSlug, persistTenantUpdate, showToast]
+    [updateTenantMetaFromArapy, showToast]
   );
 
-  // Booking Flow Actions
+  const deleteTenantFromArapy = useCallback(
+    async (targetSlug) => {
+      const currentReg = registryRef.current;
+      const remaining = (currentReg.tenants || []).filter((t) => t.slug !== targetSlug);
+      await deleteTenantDatabaseCompletely(targetSlug);
+
+      // If all tenants were deleted, create a clean default one so the app always has an active workspace
+      const finalTenants =
+        remaining.length > 0 ? remaining : DEFAULT_MASTER_REGISTRY.tenants.slice(0, 1);
+
+      const nextReg = { ...currentReg, tenants: finalTenants };
+      registryRef.current = nextReg;
+      setRegistry(nextReg);
+      await saveMasterRegistry(finalTenants, currentReg.arapyConfig);
+
+      if (targetSlug === activeSlug) {
+        switchTenant(finalTenants[0].slug);
+      }
+      showToast(`🗑️ Cliente "${targetSlug}" eliminado permanentemente`);
+    },
+    [activeSlug, switchTenant, showToast]
+  );
+
+  // Booking Flow Computed State
   const selectedService = useMemo(() => {
     return (
       tenantDb.services?.find((s) => s.id === selectedServiceId) ||
       tenantDb.services?.[0] || {
         id: 'default',
-        name: 'Manicure 3D',
-        addonLabel: '+ mini patterns',
-        price: 24000,
-        durationMin: 90,
-        image: '/assets/studio-nails.jpg'
+        name: 'Servicio (Editable)',
+        addonLabel: '+ detalle',
+        price: 20000,
+        durationMin: 60,
+        image: './assets/studio-nails.jpg'
       }
     );
   }, [tenantDb.services, selectedServiceId]);
@@ -353,13 +508,14 @@ export function SaaSProvider({ children }) {
     return (
       tenantDb.specialists?.find((s) => s.id === selectedSpecialistId) ||
       tenantDb.specialists?.[0] || {
-        id: 'spec-1',
-        name: 'Daniela Giménez',
-        studioCode: 'DG Studio',
-        avatar: '/assets/stylist-main.jpg'
+        id: 'spec-default',
+        name: 'Colaboradora (Editable)',
+        role: 'Especialista',
+        studioCode: tenantDb.branding?.studioSubCode || 'Sucursal Principal',
+        avatar: './assets/stylist-main.jpg'
       }
     );
-  }, [tenantDb.specialists, selectedSpecialistId]);
+  }, [tenantDb.specialists, selectedSpecialistId, tenantDb.branding?.studioSubCode]);
 
   const resolvedAddedInspoPhotos = useMemo(() => {
     const galleryMatches = (tenantDb.inspoGallery || [])
@@ -386,19 +542,25 @@ export function SaaSProvider({ children }) {
   const computedTimeRange = useMemo(() => {
     const start = selectedTimeSlot || '12:00';
     const [hh, mm] = start.split(':').map((n) => parseInt(n, 10) || 0);
-    const dur = Number(selectedService?.durationMin || 90);
-    const totalMinutes = hh * 60 + mm + dur;
+    const dur = Number(selectedService?.durationMin || 60);
+    // Add +20 min automatically if the selected work option mentions removal ("retiro")
+    const extraRemoval = String(selectedNailShape || '')
+      .toLowerCase()
+      .includes('retiro')
+      ? 20
+      : 0;
+    const totalMinutes = hh * 60 + mm + dur + extraRemoval;
     const endH = String(Math.floor(totalMinutes / 60) % 24).padStart(2, '0');
     const endM = String(totalMinutes % 60).padStart(2, '0');
     return `${start}-${endH}:${endM}`;
-  }, [selectedTimeSlot, selectedService]);
+  }, [selectedTimeSlot, selectedService, selectedNailShape]);
 
   const selectServiceAndGoToBooking = useCallback(
     (serviceId, applyPromoDiscount = false) => {
       setSelectedServiceId(serviceId);
       setPromoApplied(Boolean(applyPromoDiscount));
       setActiveScreen('booking');
-      showToast('✨ Servicio cargado en tu tarjeta de reserva');
+      showToast('✨ Servicio seleccionado para tu reserva');
     },
     [showToast]
   );
@@ -442,7 +604,12 @@ export function SaaSProvider({ children }) {
 
   const confirmAndSaveAppointment = useCallback(
     async ({ customClientName, customClientPhone, customNotes, sendWhatsapp = true }) => {
-      const finalName = (customClientName || clientProfile.name || 'Clienta').trim();
+      const finalName = (
+        customClientName ||
+        clientProfile.name ||
+        tenantDb.branding?.defaultClientGreetingName ||
+        'Clienta'
+      ).trim();
       const finalPhone = (customClientPhone || clientProfile.phone || '').trim();
       const updatedProfile = {
         name: finalName,
@@ -454,7 +621,7 @@ export function SaaSProvider({ children }) {
 
       const newApt = {
         id: `apt-${Date.now()}`,
-        code: `${(tenantDb.branding?.logoText || 'DG').toUpperCase()}-${Math.floor(
+        code: `${(tenantDb.branding?.logoText || 'TS').toUpperCase()}-${Math.floor(
           100 + Math.random() * 900
         )}`,
         clientName: finalName,
@@ -464,7 +631,8 @@ export function SaaSProvider({ children }) {
         addonLabel: selectedService.addonLabel || '',
         specialistId: selectedSpecialist.id,
         specialistName: selectedSpecialist.name,
-        studioCode: selectedSpecialist.studioCode || tenantDb.branding?.studioSubCode || 'Studio',
+        studioCode:
+          selectedSpecialist.studioCode || tenantDb.branding?.studioSubCode || 'Sucursal',
         dateLabel: selectedDateLabel,
         timeSlot: selectedTimeSlot,
         timeRange: computedTimeRange,
@@ -485,7 +653,7 @@ export function SaaSProvider({ children }) {
           ...prev,
           appointments: [newApt, ...(prev.appointments || [])]
         }),
-        `Turno ${newApt.code} guardado en Base de Datos`
+        `Turno ${newApt.code} guardado en la Agenda`
       );
 
       showToast(`✅ Turno #${newApt.code} guardado y confirmado`);
@@ -496,11 +664,12 @@ export function SaaSProvider({ children }) {
         const msgLines = [
           `✨ *NUEVA RESERVA DE TURNO (${newApt.code})* ✨`,
           `🏢 *Salón:* ${tenantDb.branding?.businessName}`,
+          `📍 *Dirección:* ${tenantDb.operations?.address || ''}`,
           `👤 *Clienta:* ${finalName}`,
           `💅 *Servicio:* ${selectedService.name} ${selectedService.addonLabel || ''}`,
-          `👩‍🎨 *Especialista:* ${selectedSpecialist.name}`,
+          `👩‍🎨 *Profesional:* ${selectedSpecialist.name}`,
           `📅 *Fecha y Hora:* ${selectedDateLabel} (${computedTimeRange})`,
-          `💎 *Estilo / Forma:* ${selectedNailShape}`,
+          `💎 *Opción / Detalle:* ${selectedNailShape}`,
           `🖼️ *Fotos Inspo adjuntas:* ${newApt.inspoImages.length} diseño(s)`,
           `💰 *Total:* ${cur}${pricingSummary.finalTotal.toLocaleString('es-AR')}`,
           `🔒 *Seña (${pricingSummary.depositPct}%):* ${cur}${pricingSummary.depositAmount.toLocaleString('es-AR')} (Alias: ${tenantDb.operations?.paymentAlias})`,
@@ -533,12 +702,13 @@ export function SaaSProvider({ children }) {
   );
 
   const resetCurrentTenantToDefaults = useCallback(async () => {
-    const meta = registry.tenants.find((t) => t.slug === activeSlug) || {};
+    const meta = registryRef.current.tenants.find((t) => t.slug === activeSlug) || {};
     const fresh = createTenantSeedDatabase(activeSlug, meta);
     const res = await resetTenantDatabaseOnDisk(activeSlug, fresh);
+    tenantDbRef.current = res.data;
     setTenantDb(res.data);
-    showToast('🔄 Datos de ejemplo restaurados en disco');
-  }, [activeSlug, registry.tenants, showToast]);
+    showToast('🔄 Plantilla base restaurada');
+  }, [activeSlug, showToast]);
 
   // ARAPY MASTER CONSOLE BRIDGE (/estetica-unas route + postMessage + global API)
   useEffect(() => {
@@ -550,13 +720,14 @@ export function SaaSProvider({ children }) {
       getActiveTenantDb: () => tenantDb,
       switchTenant,
       createNewTenant: createNewTenantFromArapy,
+      updateTenantMeta: updateTenantMetaFromArapy,
+      deleteTenant: deleteTenantFromArapy,
       setTenantStatus: toggleTenantStatusFromArapy,
       openArapyConsole: () => setActiveModal('arapy'),
       openOwnerPanel: () => setActiveModal('owner')
     };
     window.ARAPY_ESTETICA_UNAS_API = bridgeApi;
 
-    // Emit state sync to parent ARAPY Master Console if embedded
     try {
       if (window.parent && window.parent !== window) {
         window.parent.postMessage(
@@ -585,6 +756,8 @@ export function SaaSProvider({ children }) {
         toggleTenantStatusFromArapy(msg.slug, msg.status);
       } else if (msg.action === 'CREATE_TENANT' && msg.payload) {
         createNewTenantFromArapy(msg.payload);
+      } else if (msg.action === 'DELETE_TENANT' && msg.slug) {
+        deleteTenantFromArapy(msg.slug);
       } else if (msg.action === 'OPEN_PANEL') {
         setActiveModal(msg.panel || 'owner');
       }
@@ -598,6 +771,8 @@ export function SaaSProvider({ children }) {
     tenantDb,
     switchTenant,
     createNewTenantFromArapy,
+    updateTenantMetaFromArapy,
+    deleteTenantFromArapy,
     toggleTenantStatusFromArapy
   ]);
 
@@ -607,6 +782,8 @@ export function SaaSProvider({ children }) {
     activeSlug,
     switchTenant,
     createNewTenantFromArapy,
+    updateTenantMetaFromArapy,
+    deleteTenantFromArapy,
     toggleTenantStatusFromArapy,
     tenantDb,
     isLoadingDb,

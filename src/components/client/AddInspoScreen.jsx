@@ -7,7 +7,9 @@ import {
   Plus,
   Upload,
   Trash2,
-  Sparkles
+  Sparkles,
+  UserPlus,
+  UserMinus
 } from 'lucide-react';
 import { useSaaS } from '../../context/SaaSContext';
 import EditableMedia from '../common/EditableMedia';
@@ -33,8 +35,13 @@ export default function AddInspoScreen({ onNavigate }) {
     showToast
   } = useSaaS();
 
-  const { branding, specialists = [], inspoGallery = [] } = tenantDb;
-  const [filterTab, setFilterTab] = useState('all'); // 'all' | 'unas' | 'pelo' | 'favs'
+  const {
+    branding = {},
+    categories = [],
+    specialists = [],
+    inspoGallery = []
+  } = tenantDb;
+  const [filterTab, setFilterTab] = useState('all');
   const [uploadingClientPhoto, setUploadingClientPhoto] = useState(false);
   const clientFileRef = useRef(null);
 
@@ -45,8 +52,8 @@ export default function AddInspoScreen({ onNavigate }) {
 
   const filteredGallery = inspoGallery.filter((item) => {
     if (filterTab === 'favs') return likedInspoIds.includes(item.id);
-    if (filterTab === 'unas' || filterTab === 'pelo') return item.category === filterTab;
-    return true;
+    if (filterTab === 'all') return true;
+    return item.category === filterTab;
   });
 
   const handleUpdateSpecialistField = (specId, field, value) => {
@@ -56,6 +63,40 @@ export default function AddInspoScreen({ onNavigate }) {
         s.id === specId ? { ...s, [field]: value } : s
       )
     }));
+  };
+
+  const handleAddCollaboratorInline = () => {
+    const newId = `spec-${Date.now()}`;
+    const newCollab = {
+      id: newId,
+      name: 'Nuevo/a Colaborador/a (Editable)',
+      role: 'Especialidad (Editable)',
+      studioCode: branding.studioSubCode || 'Sucursal Principal',
+      avatar: './assets/stylist-main.jpg',
+      rating: '5.0',
+      specialties: categories.map((c) => c.id),
+      verified: true
+    };
+    persistTenantUpdate((prev) => ({
+      ...prev,
+      specialists: [...(prev.specialists || []), newCollab]
+    }));
+    setSelectedSpecialistId(newId);
+    showToast('➕ Colaborador/a agregado/a. Tocá su foto o nombre para editar.');
+  };
+
+  const handleRemoveCollaboratorInline = (specId) => {
+    persistTenantUpdate((prev) => {
+      const next = (prev.specialists || []).filter((s) => s.id !== specId);
+      if (next.length > 0 && selectedSpecialistId === specId) {
+        setSelectedSpecialistId(next[0].id);
+      }
+      return {
+        ...prev,
+        specialists: next
+      };
+    });
+    showToast('🗑️ Colaborador/a quitado/a del equipo');
   };
 
   const handleUpdateInspoField = (inspoId, field, value) => {
@@ -82,14 +123,18 @@ export default function AddInspoScreen({ onNavigate }) {
     try {
       const url = await uploadAndSaveImage(file, 'inspo');
       if (url) {
+        const defaultCat =
+          filterTab !== 'all' && filterTab !== 'favs'
+            ? filterTab
+            : categories[0]?.id || 'general';
         const newItem = {
           id: `inspo-${Date.now()}`,
-          title: 'Diseño Personalizado',
-          category: filterTab === 'pelo' ? 'pelo' : 'unas',
+          title: 'Diseño Personalizado (Editable)',
+          category: defaultCat,
           nailShape: 'A elección',
           likes: 1,
           image: url,
-          linkedServiceId: tenantDb.services?.[0]?.id || 'srv-manicure-3d'
+          linkedServiceId: tenantDb.services?.[0]?.id || 'default'
         };
         await persistTenantUpdate((prev) => ({
           ...prev,
@@ -109,7 +154,7 @@ export default function AddInspoScreen({ onNavigate }) {
     const idx = specialists.findIndex((s) => s.id === selectedSpecialistId);
     const nextSpec = specialists[(idx + 1) % specialists.length];
     setSelectedSpecialistId(nextSpec.id);
-    showToast(`👩‍🎨 Profesional seleccionada: ${nextSpec.name}`);
+    showToast(`👩‍🎨 Colaborador/a: ${nextSpec.name}`);
   };
 
   return (
@@ -126,7 +171,7 @@ export default function AddInspoScreen({ onNavigate }) {
       </div>
 
       <div className="inspo-scroll-body">
-        {/* Top Back Button */}
+        {/* Top Back Button & Upload Photo Button */}
         <div className="inspo-top-bar">
           <button
             type="button"
@@ -136,7 +181,6 @@ export default function AddInspoScreen({ onNavigate }) {
             <ChevronLeft size={19} />
           </button>
 
-          {/* Upload Own Photo Button (For both Client & Owner) */}
           <input
             ref={clientFileRef}
             type="file"
@@ -150,11 +194,18 @@ export default function AddInspoScreen({ onNavigate }) {
             onClick={() => clientFileRef.current?.click()}
           >
             <Upload size={13} />
-            <span>{uploadingClientPhoto ? 'Subiendo...' : 'Subir Foto Propia'}</span>
+            <EditableText
+              value={
+                uploadingClientPhoto
+                  ? 'Subiendo...'
+                  : branding.inspoUploadButtonLabel || 'Subir Foto Propia'
+              }
+              onSave={(val) => updateBrandingField('inspoUploadButtonLabel', val)}
+            />
           </button>
         </div>
 
-        {/* Title Row ("Add inspo" + Chat AI + Heart Icons — Exact match to Reference 1 Right) */}
+        {/* Title Row ("Add inspo" + Chat AI + Heart Icons) */}
         <div className="inspo-title-row">
           <div>
             <EditableText
@@ -176,7 +227,7 @@ export default function AddInspoScreen({ onNavigate }) {
               type="button"
               className="inspo-circle-icon-btn"
               onClick={() => setActiveModal('ai')}
-              title="Abrir Asesora IA de Uñas y Pelo"
+              title="Abrir Asesora IA"
             >
               <MessageCircle size={17} />
             </button>
@@ -191,79 +242,115 @@ export default function AddInspoScreen({ onNavigate }) {
           </div>
         </div>
 
-        {/* Outlined Pill Tabs ("Services | book now | Explore") */}
+        {/* Dynamic Unlimited Category Outlined Pill Tabs */}
         <div className="inspo-outlined-tabs">
           <button
             type="button"
             className={`inspo-pill-tab ${filterTab === 'all' ? 'active' : ''}`}
             onClick={() => setFilterTab('all')}
           >
-            Explorar Todo
+            <EditableText
+              value={branding.inspoExploreTabLabel || 'Explorar Todo'}
+              onSave={(val) => updateBrandingField('inspoExploreTabLabel', val)}
+            />
           </button>
           <button
             type="button"
             className="inspo-pill-tab"
             onClick={() => goScreen('booking')}
           >
-            Book now ({addedInspoIds.length})
+            <EditableText
+              value={branding.inspoBookNowButtonLabel || 'Book now'}
+              onSave={(val) => updateBrandingField('inspoBookNowButtonLabel', val)}
+            />{' '}
+            ({addedInspoIds.length})
           </button>
-          <button
-            type="button"
-            className={`inspo-pill-tab ${filterTab === 'unas' ? 'active' : ''}`}
-            onClick={() => setFilterTab('unas')}
-          >
-            💅 Uñas
-          </button>
-          <button
-            type="button"
-            className={`inspo-pill-tab ${filterTab === 'pelo' ? 'active' : ''}`}
-            onClick={() => setFilterTab('pelo')}
-          >
-            ✂️ Pelo
-          </button>
-          <button
-            type="button"
-            className="inspo-pill-tab"
-            onClick={() => goScreen('services')}
-          >
-            Servicios
-          </button>
+          {categories.map((cat) => (
+            <button
+              key={cat.id}
+              type="button"
+              className={`inspo-pill-tab ${filterTab === cat.id ? 'active' : ''}`}
+              onClick={() => setFilterTab(cat.id)}
+            >
+              {cat.icon} {cat.shortLabel || cat.name}
+            </button>
+          ))}
         </div>
 
-        {/* 2-Column Bento Grid (First Card = Specialist Lilac Card, Rest = Selectable Inspo Photos) */}
+        {/* 2-Column Bento Grid (Card 1 = Collaborator Selector Card, Rest = Selectable Inspo Photos) */}
         <div className="inspo-bento-grid">
-          {/* Card 1: Featured Specialist Card in Lilac/Accent */}
+          {/* Card 1: Featured Collaborator Card in Lilac/Accent */}
           <div className="inspo-specialist-card">
-            <div className="spec-avatar-ring" onClick={cycleSpecialist} title="Tocá para cambiar de profesional">
-              <EditableMedia
-                src={selectedSpecialist.avatar}
-                alt={selectedSpecialist.name}
-                className="spec-circle-avatar"
-                label={`spec-${selectedSpecialist.id}`}
-                badgePosition="bottom-right"
-                onChangeUrl={(url) =>
-                  handleUpdateSpecialistField(selectedSpecialist.id, 'avatar', url)
-                }
-              />
-            </div>
+            {specialists.length > 0 ? (
+              <>
+                <div
+                  className="spec-avatar-ring"
+                  onClick={cycleSpecialist}
+                  title="Tocá para cambiar de colaborador/a"
+                >
+                  <EditableMedia
+                    src={selectedSpecialist.avatar}
+                    alt={selectedSpecialist.name}
+                    className="spec-circle-avatar"
+                    label={`spec-${selectedSpecialist.id}`}
+                    badgePosition="bottom-right"
+                    onChangeUrl={(url) =>
+                      handleUpdateSpecialistField(selectedSpecialist.id, 'avatar', url)
+                    }
+                  />
+                </div>
 
-            <div className="spec-card-name">
-              <EditableText
-                value={selectedSpecialist.name}
-                onSave={(val) =>
-                  handleUpdateSpecialistField(selectedSpecialist.id, 'name', val)
-                }
-              />
-            </div>
+                <div className="spec-card-name">
+                  <EditableText
+                    value={selectedSpecialist.name}
+                    onSave={(val) =>
+                      handleUpdateSpecialistField(selectedSpecialist.id, 'name', val)
+                    }
+                  />
+                </div>
 
-            {specialists.length > 1 && (
-              <button
-                type="button"
-                className="spec-switch-mini"
-                onClick={cycleSpecialist}
-              >
-                Cambiar profesional ↻
-              </button>
+                {specialists.length > 1 && (
+                  <button
+                    type="button"
+                    className="spec-switch-mini"
+                    onClick={cycleSpecialist}
+                  >
+                    Cambiar colaborador/a ({specialists.length}) ↻
+                  </button>
+                )}
+
+                {liveEditMode && (
+                  <div style={{ display: 'flex', gap: 4, marginBottom: 6 }}>
+                    <button
+                      type="button"
+                      className="spec-switch-mini"
+                      onClick={handleAddCollaboratorInline}
+                      title="Agregar otro/a colaborador/a"
+                    >
+                      <UserPlus size={11} /> + Sumar
+                    </button>
+                    <button
+                      type="button"
+                      className="spec-switch-mini"
+                      onClick={() => handleRemoveCollaboratorInline(selectedSpecialist.id)}
+                      title="Quitar este/a colaborador/a"
+                    >
+                      <UserMinus size={11} /> Quitar
+                    </button>
+                  </div>
+                )}
+              </>
+            ) : (
+              <div style={{ textAlign: 'center', padding: '12px 4px' }}>
+                <p style={{ fontSize: 11, marginBottom: 8 }}>Sin colaboradores asignados</p>
+                <button
+                  type="button"
+                  className="spec-switch-mini"
+                  onClick={handleAddCollaboratorInline}
+                >
+                  <Plus size={11} /> + Poner Colaborador/a
+                </button>
+              </div>
             )}
 
             <button
@@ -271,11 +358,14 @@ export default function AddInspoScreen({ onNavigate }) {
               className="spec-dark-book-btn"
               onClick={() => goScreen('booking')}
             >
-              Book now
+              <EditableText
+                value={branding.inspoBookNowButtonLabel || 'Book now'}
+                onSave={(val) => updateBrandingField('inspoBookNowButtonLabel', val)}
+              />
             </button>
           </div>
 
-          {/* Remaining Cards: Nail & Hair Inspo Photos */}
+          {/* Remaining Cards: Unlimited Nail & Hair Inspo Photos */}
           {filteredGallery.map((item) => {
             const isSelected = addedInspoIds.includes(item.id);
             const isLiked = likedInspoIds.includes(item.id);
@@ -295,7 +385,6 @@ export default function AddInspoScreen({ onNavigate }) {
                   onChangeUrl={(url) => handleUpdateInspoField(item.id, 'image', url)}
                 >
                   <div className="inspo-card-overlay">
-                    {/* Top Right Like & Delete Controls */}
                     <div className="inspo-card-top-controls">
                       <button
                         type="button"
@@ -317,14 +406,13 @@ export default function AddInspoScreen({ onNavigate }) {
                             e.stopPropagation();
                             handleDeleteInspoItem(item.id);
                           }}
-                          title="Borrar esta foto de ejemplo"
+                          title="Borrar esta foto"
                         >
                           <Trash2 size={12} />
                         </button>
                       )}
                     </div>
 
-                    {/* Bottom Label & "+ Added Inspo" Toggle */}
                     <div className="inspo-card-bottom-bar">
                       <span className="inspo-card-caption">
                         <EditableText
@@ -353,7 +441,11 @@ export default function AddInspoScreen({ onNavigate }) {
         >
           <Sparkles size={15} />
           <span>
-            Usar {addedInspoIds.length} diseño(s) en mi Turno →
+            ({addedInspoIds.length}){' '}
+            <EditableText
+              value={branding.inspoConfirmFooterLabel || 'Usar diseños elegidos en mi Turno →'}
+              onSave={(val) => updateBrandingField('inspoConfirmFooterLabel', val)}
+            />
           </span>
         </button>
       </div>

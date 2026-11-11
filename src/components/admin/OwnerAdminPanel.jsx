@@ -13,7 +13,8 @@ import {
   Image as ImageIcon,
   Download,
   RotateCcw,
-  ExternalLink
+  Users,
+  Layers
 } from 'lucide-react';
 import { useSaaS } from '../../context/SaaSContext';
 import { THEME_PRESETS } from '../../data/seedTemplates';
@@ -37,14 +38,19 @@ export default function OwnerAdminPanel() {
     showToast
   } = useSaaS();
 
-  const [tab, setTab] = useState('branding'); // 'branding' | 'services' | 'inspo' | 'schedule' | 'agenda' | 'database'
+  const [tab, setTab] = useState('branding'); // 'branding' | 'categories_services' | 'collaborators_inspo' | 'schedule' | 'agenda' | 'database'
   const [newSlotInput, setNewSlotInput] = useState('');
+  const [newDateInput, setNewDateInput] = useState('');
+  const [newWorkOptionInput, setNewWorkOptionInput] = useState('');
+  const [newCatName, setNewCatName] = useState('');
+  const [newCatIcon, setNewCatIcon] = useState('✨');
 
   if (activeModal !== 'owner') return null;
 
   const {
     branding = {},
     operations = {},
+    categories = [],
     services = [],
     specialists = [],
     inspoGallery = [],
@@ -60,49 +66,109 @@ export default function OwnerAdminPanel() {
     e.target.value = '';
   };
 
-  // Services CRUD
+  // ---------------------------------------------------------------------------
+  // 1. UNLIMITED CATEGORIES CRUD
+  // ---------------------------------------------------------------------------
+  const handleAddCategory = () => {
+    const cleanName = newCatName.trim() || `Categoría ${categories.length + 1}`;
+    const newId = `cat-${Date.now()}`;
+    const newCat = {
+      id: newId,
+      name: cleanName,
+      shortLabel: cleanName,
+      icon: newCatIcon.trim() || '✨'
+    };
+    persistTenantUpdate(
+      (prev) => ({
+        ...prev,
+        categories: [...(prev.categories || []), newCat]
+      }),
+      `Categoría "${cleanName}" agregada`
+    );
+    setNewCatName('');
+    showToast(`➕ Categoría "${cleanName}" guardada`);
+  };
+
+  const handleCategoryChange = (catId, field, value) => {
+    persistTenantUpdate((prev) => ({
+      ...prev,
+      categories: (prev.categories || []).map((c) =>
+        c.id === catId
+          ? {
+              ...c,
+              [field]: value,
+              ...(field === 'name' ? { shortLabel: value } : {})
+            }
+          : c
+      )
+    }));
+  };
+
+  const handleDeleteCategory = (catId) => {
+    persistTenantUpdate(
+      (prev) => ({
+        ...prev,
+        categories: (prev.categories || []).filter((c) => c.id !== catId)
+      }),
+      'Categoría eliminada'
+    );
+    showToast('🗑️ Categoría eliminada');
+  };
+
+  // ---------------------------------------------------------------------------
+  // 2. UNLIMITED SERVICES / WORK ITEMS CRUD
+  // ---------------------------------------------------------------------------
   const handleServiceChange = (srvId, field, value) => {
     persistTenantUpdate((prev) => ({
       ...prev,
-      services: prev.services.map((s) => (s.id === srvId ? { ...s, [field]: value } : s))
+      services: (prev.services || []).map((s) =>
+        s.id === srvId ? { ...s, [field]: value } : s
+      )
     }));
   };
 
   const handleAddService = () => {
+    const defaultCatId = categories[0]?.id || 'general';
     const newSrv = {
       id: `srv-${Date.now()}`,
-      name: 'Nuevo Servicio del Salón',
-      addonLabel: '+ detalle',
-      category: 'unas',
+      name: 'Nuevo Trabajo / Servicio (Editable)',
+      addonLabel: '+ detalle (Editable)',
+      category: defaultCatId,
       popularIcon: 'sparkles',
       isPopular: true,
-      shortDesc: 'Descripción del servicio',
-      price: 22000,
+      shortDesc: 'Descripción del servicio o trabajo',
+      price: 20000,
       durationMin: 60,
-      image: '/assets/inspo-rose-french.jpg'
+      image: './assets/inspo-rose-french.jpg'
     };
-    persistTenantUpdate((prev) => ({
-      ...prev,
-      services: [newSrv, ...(prev.services || [])]
-    }));
+    persistTenantUpdate(
+      (prev) => ({
+        ...prev,
+        services: [newSrv, ...(prev.services || [])]
+      }),
+      'Nuevo servicio agregado'
+    );
+    showToast('➕ Nuevo trabajo agregado al catálogo');
   };
 
   const handleDeleteService = (srvId) => {
-    if (services.length <= 1) {
-      showToast('Debe existir al menos un servicio activo.');
-      return;
-    }
-    persistTenantUpdate((prev) => ({
-      ...prev,
-      services: prev.services.filter((s) => s.id !== srvId)
-    }));
+    persistTenantUpdate(
+      (prev) => ({
+        ...prev,
+        services: (prev.services || []).filter((s) => s.id !== srvId)
+      }),
+      'Servicio eliminado'
+    );
+    showToast('🗑️ Trabajo eliminado del catálogo');
   };
 
-  // Specialists CRUD
+  // ---------------------------------------------------------------------------
+  // 3. UNLIMITED COLLABORATORS / SPECIALISTS CRUD (Put or Remove freely)
+  // ---------------------------------------------------------------------------
   const handleSpecialistChange = (specId, field, value) => {
     persistTenantUpdate((prev) => ({
       ...prev,
-      specialists: prev.specialists.map((s) =>
+      specialists: (prev.specialists || []).map((s) =>
         s.id === specId ? { ...s, [field]: value } : s
       )
     }));
@@ -111,36 +177,42 @@ export default function OwnerAdminPanel() {
   const handleAddSpecialist = () => {
     const newSpec = {
       id: `spec-${Date.now()}`,
-      name: 'Nueva Profesional',
-      role: 'Especialista Uñas & Pelo',
-      studioCode: branding.studioSubCode || 'Studio',
-      avatar: '/assets/stylist-main.jpg',
+      name: `Colaborador/a ${(specialists?.length || 0) + 1} (Editable)`,
+      role: 'Especialidad / Rol (Editable)',
+      studioCode: branding.studioSubCode || 'Box / Sillón',
+      avatar: './assets/stylist-main.jpg',
       rating: '5.0',
-      specialties: ['unas', 'pelo'],
+      specialties: categories.map((c) => c.id),
       verified: true
     };
-    persistTenantUpdate((prev) => ({
-      ...prev,
-      specialists: [...(prev.specialists || []), newSpec]
-    }));
+    persistTenantUpdate(
+      (prev) => ({
+        ...prev,
+        specialists: [...(prev.specialists || []), newSpec]
+      }),
+      'Colaborador/a agregado/a'
+    );
+    showToast('➕ Colaborador/a agregado/a al equipo');
   };
 
   const handleDeleteSpecialist = (specId) => {
-    if (specialists.length <= 1) {
-      showToast('Debe quedar al menos 1 profesional en el equipo.');
-      return;
-    }
-    persistTenantUpdate((prev) => ({
-      ...prev,
-      specialists: prev.specialists.filter((s) => s.id !== specId)
-    }));
+    persistTenantUpdate(
+      (prev) => ({
+        ...prev,
+        specialists: (prev.specialists || []).filter((s) => s.id !== specId)
+      }),
+      'Colaborador/a quitado/a'
+    );
+    showToast('🗑️ Colaborador/a quitado/a del equipo');
   };
 
-  // Inspo Gallery CRUD
+  // ---------------------------------------------------------------------------
+  // 4. UNLIMITED INSPO GALLERY CRUD
+  // ---------------------------------------------------------------------------
   const handleInspoChange = (id, field, value) => {
     persistTenantUpdate((prev) => ({
       ...prev,
-      inspoGallery: prev.inspoGallery.map((i) =>
+      inspoGallery: (prev.inspoGallery || []).map((i) =>
         i.id === id ? { ...i, [field]: value } : i
       )
     }));
@@ -153,12 +225,12 @@ export default function OwnerAdminPanel() {
     if (url) {
       const newItem = {
         id: `inspo-${Date.now()}`,
-        title: 'Nuevo Trabajo del Salón',
-        category: 'unas',
-        nailShape: 'Almendra',
+        title: 'Nuevo Trabajo / Foto (Editable)',
+        category: categories[0]?.id || 'general',
+        nailShape: operations.workOptions?.[0] || 'A elección',
         likes: 10,
         image: url,
-        linkedServiceId: services[0]?.id || 'srv-manicure-3d'
+        linkedServiceId: services[0]?.id || 'default'
       };
       persistTenantUpdate((prev) => ({
         ...prev,
@@ -171,11 +243,50 @@ export default function OwnerAdminPanel() {
   const handleDeleteInspo = (id) => {
     persistTenantUpdate((prev) => ({
       ...prev,
-      inspoGallery: prev.inspoGallery.filter((i) => i.id !== id)
+      inspoGallery: (prev.inspoGallery || []).filter((i) => i.id !== id)
     }));
+    showToast('🗑️ Foto eliminada de la galería');
   };
 
-  // Schedule Slots CRUD
+  // ---------------------------------------------------------------------------
+  // 5. UNLIMITED WORK OPTIONS, DATES & TIME SLOTS CRUD
+  // ---------------------------------------------------------------------------
+  const handleAddWorkOption = () => {
+    const clean = newWorkOptionInput.trim();
+    if (!clean) return;
+    const current = operations.workOptions || [];
+    if (!current.includes(clean)) {
+      updateOperationsField('workOptions', [...current, clean]);
+    }
+    setNewWorkOptionInput('');
+  };
+
+  const handleRemoveWorkOption = (opt) => {
+    const current = operations.workOptions || [];
+    updateOperationsField(
+      'workOptions',
+      current.filter((o) => o !== opt)
+    );
+  };
+
+  const handleAddDateOption = () => {
+    const clean = newDateInput.trim();
+    if (!clean) return;
+    const current = operations.availableDates || [];
+    if (!current.includes(clean)) {
+      updateOperationsField('availableDates', [...current, clean]);
+    }
+    setNewDateInput('');
+  };
+
+  const handleRemoveDateOption = (d) => {
+    const current = operations.availableDates || [];
+    updateOperationsField(
+      'availableDates',
+      current.filter((item) => item !== d)
+    );
+  };
+
   const handleAddTimeSlot = () => {
     const clean = newSlotInput.trim();
     if (!clean) return;
@@ -194,11 +305,13 @@ export default function OwnerAdminPanel() {
     );
   };
 
-  // Appointments Status Change
+  // ---------------------------------------------------------------------------
+  // 6. APPOINTMENTS AGENDA & DATABASE EXPORT/IMPORT
+  // ---------------------------------------------------------------------------
   const handleAppointmentStatus = (aptId, nextStatus) => {
     persistTenantUpdate((prev) => ({
       ...prev,
-      appointments: prev.appointments.map((a) =>
+      appointments: (prev.appointments || []).map((a) =>
         a.id === aptId ? { ...a, status: nextStatus } : a
       )
     }));
@@ -207,11 +320,10 @@ export default function OwnerAdminPanel() {
   const handleDeleteAppointment = (aptId) => {
     persistTenantUpdate((prev) => ({
       ...prev,
-      appointments: prev.appointments.filter((a) => a.id !== aptId)
+      appointments: (prev.appointments || []).filter((a) => a.id !== aptId)
     }));
   };
 
-  // Export JSON DB
   const handleExportJson = () => {
     const blob = new Blob([JSON.stringify(tenantDb, null, 2)], {
       type: 'application/json'
@@ -231,9 +343,9 @@ export default function OwnerAdminPanel() {
     reader.onload = (ev) => {
       try {
         const parsed = JSON.parse(ev.target.result);
-        if (parsed && parsed.branding && parsed.services) {
+        if (parsed && parsed.branding) {
           persistTenantUpdate({ ...parsed, slug: activeSlug });
-          showToast('✅ Base de datos importada y guardada en disco');
+          showToast('✅ Base de datos importada y guardada permanentemente');
         }
       } catch {
         showToast('❌ Archivo JSON inválido');
@@ -245,7 +357,7 @@ export default function OwnerAdminPanel() {
   return (
     <div className="modal-backdrop" onClick={() => setActiveModal('none')}>
       <div className="admin-modal-window" onClick={(e) => e.stopPropagation()}>
-        {/* Header with Real-Time Disk Persistence Indicator */}
+        {/* Header with Real-Time Persistence Indicator */}
         <div className="admin-modal-header">
           <div>
             <div className="admin-badge-row">
@@ -255,11 +367,11 @@ export default function OwnerAdminPanel() {
               <span className="disk-sync-pill">
                 <CheckCircle2 size={13} />
                 {saveStatus.saving
-                  ? 'Guardando en disco...'
-                  : 'Persistido en Disco Real + IndexedDB'}
+                  ? 'Guardando cambios...'
+                  : 'Todo guardado en Base de Datos (Se recuerda siempre)'}
               </span>
             </div>
-            <h2>Panel de Autogestión del Negocio — {branding.businessName}</h2>
+            <h2>Panel de Configuración Total — {branding.businessName}</h2>
           </div>
 
           <div className="admin-header-right">
@@ -298,23 +410,27 @@ export default function OwnerAdminPanel() {
             onClick={() => setTab('branding')}
           >
             <Palette size={15} />
-            <span>1. Marca, Logo y Fotos</span>
+            <span>1. Nombre, Fotos, Dirección y Teléfono</span>
           </button>
           <button
             type="button"
-            className={`admin-tab-btn ${tab === 'services' ? 'active' : ''}`}
-            onClick={() => setTab('services')}
+            className={`admin-tab-btn ${tab === 'categories_services' ? 'active' : ''}`}
+            onClick={() => setTab('categories_services')}
           >
-            <Scissors size={15} />
-            <span>2. Servicios ({services.length})</span>
+            <Layers size={15} />
+            <span>
+              2. Categorías ({categories.length}) y Trabajos ({services.length})
+            </span>
           </button>
           <button
             type="button"
-            className={`admin-tab-btn ${tab === 'inspo' ? 'active' : ''}`}
-            onClick={() => setTab('inspo')}
+            className={`admin-tab-btn ${tab === 'collaborators_inspo' ? 'active' : ''}`}
+            onClick={() => setTab('collaborators_inspo')}
           >
-            <ImageIcon size={15} />
-            <span>3. Fotos Inspo & Equipo</span>
+            <Users size={15} />
+            <span>
+              3. Colaboradores ({specialists.length}) y Galería ({inspoGallery.length})
+            </span>
           </button>
           <button
             type="button"
@@ -322,7 +438,7 @@ export default function OwnerAdminPanel() {
             onClick={() => setTab('schedule')}
           >
             <Clock size={15} />
-            <span>4. Horarios, Seña y WhatsApp</span>
+            <span>4. Horarios, Opciones y Seña</span>
           </button>
           <button
             type="button"
@@ -330,7 +446,7 @@ export default function OwnerAdminPanel() {
             onClick={() => setTab('agenda')}
           >
             <Calendar size={15} />
-            <span>5. Agenda de Turnos ({appointments.length})</span>
+            <span>5. Agenda ({appointments.length})</span>
           </button>
           <button
             type="button"
@@ -338,26 +454,76 @@ export default function OwnerAdminPanel() {
             onClick={() => setTab('database')}
           >
             <Database size={15} />
-            <span>6. Base de Datos Propia</span>
+            <span>6. Base de Datos</span>
           </button>
         </div>
 
         {/* Tab Body */}
         <div className="admin-tab-content">
-          {/* TAB 1: BRANDING, LOGO, HERO PHOTOS & COLORS */}
+          {/* TAB 1: BRANDING, CONTACT INFO, PHOTOS & COLORS */}
           {tab === 'branding' && (
             <div className="admin-grid-2col">
               <div className="admin-panel-box">
-                <h3>Identidad del Salón y Textos de Pantallas</h3>
+                <h3>Datos del Negocio, Dirección, Teléfono y Textos (100% Editables)</h3>
                 <div className="admin-form-stack">
                   <label>
-                    Nombre del Salón / Negocio (Reemplaza "Daniela Giménez")
+                    Nombre del Salón / Tienda (Editable)
                     <input
                       type="text"
                       value={branding.businessName || ''}
                       onChange={(e) => updateBrandingField('businessName', e.target.value)}
+                      placeholder="Ingresá el nombre de tu negocio"
                     />
                   </label>
+
+                  <div className="admin-row-2">
+                    <label>
+                      Dirección del Local / Estudio
+                      <input
+                        type="text"
+                        value={operations.address || ''}
+                        onChange={(e) => updateOperationsField('address', e.target.value)}
+                        placeholder="Ej: Av. Principal 123, Local 1"
+                      />
+                    </label>
+                    <label>
+                      Horarios de Atención (Texto visible)
+                      <input
+                        type="text"
+                        value={operations.businessHoursText || ''}
+                        onChange={(e) =>
+                          updateOperationsField('businessHoursText', e.target.value)
+                        }
+                        placeholder="Ej: Lun a Sáb 09:00 a 20:00 hs"
+                      />
+                    </label>
+                  </div>
+
+                  <div className="admin-row-2">
+                    <label>
+                      Teléfono Visible en Pantallas
+                      <input
+                        type="text"
+                        value={operations.phoneDisplay || ''}
+                        onChange={(e) =>
+                          updateOperationsField('phoneDisplay', e.target.value)
+                        }
+                        placeholder="Ej: +54 9 11 0000-0000"
+                      />
+                    </label>
+                    <label>
+                      Número de WhatsApp para recibir Turnos (solo números)
+                      <input
+                        type="text"
+                        value={operations.whatsappNumber || ''}
+                        onChange={(e) =>
+                          updateOperationsField('whatsappNumber', e.target.value)
+                        }
+                        placeholder="Ej: 5491100000000"
+                      />
+                    </label>
+                  </div>
+
                   <div className="admin-row-2">
                     <label>
                       Iniciales / Sello Logo
@@ -368,7 +534,7 @@ export default function OwnerAdminPanel() {
                       />
                     </label>
                     <label>
-                      Nombre Corto del Estudio (Ej: DG Studio)
+                      Nombre de Sucursal / Gabinete
                       <input
                         type="text"
                         value={branding.studioSubCode || ''}
@@ -376,14 +542,16 @@ export default function OwnerAdminPanel() {
                       />
                     </label>
                   </div>
+
                   <label>
-                    Título Espaciado en Tarjeta de Reserva (Ej: B E A U T Y   S T U D I O)
+                    Título Superior en Tarjeta de Reserva (Ej: B E A U T Y   S T U D I O)
                     <input
                       type="text"
                       value={branding.studioBadgeTitle || ''}
                       onChange={(e) => updateBrandingField('studioBadgeTitle', e.target.value)}
                     />
                   </label>
+
                   <div className="admin-row-3">
                     <label>
                       Portada Línea 1
@@ -414,6 +582,7 @@ export default function OwnerAdminPanel() {
                       />
                     </label>
                   </div>
+
                   <label>
                     Subtítulo de Portada
                     <input
@@ -422,9 +591,10 @@ export default function OwnerAdminPanel() {
                       onChange={(e) => updateBrandingField('splashSubtitle', e.target.value)}
                     />
                   </label>
+
                   <div className="admin-row-2">
                     <label>
-                      Promo Descuento (Ej: 20% OFF)
+                      Etiqueta Descuento Promo (Ej: 20% OFF)
                       <input
                         type="text"
                         value={branding.offerDiscountBadge || ''}
@@ -481,7 +651,7 @@ export default function OwnerAdminPanel() {
                     />
                   </label>
                   <label>
-                    Color Acento Tarjeta Reserva / Especialista
+                    Color Acento Tarjeta Reserva / Colaborador
                     <input
                       type="color"
                       value={branding.colors?.lilacAccent || '#CFA8F5'}
@@ -499,21 +669,21 @@ export default function OwnerAdminPanel() {
                     {
                       key: 'logoUrl',
                       title: 'Logo del Salón (Opcional)',
-                      current: branding.logoUrl || '/assets/stylist-main.jpg'
+                      current: branding.logoUrl || './assets/stylist-main.jpg'
                     },
                     {
                       key: 'splashHeroImage',
-                      title: 'Foto Pantalla 1 (Portada Splash)',
+                      title: 'Foto Pantalla 1 (Portada)',
                       current: branding.splashHeroImage
                     },
                     {
                       key: 'offerBannerImage',
-                      title: 'Foto Banner Oferta 20% OFF',
+                      title: 'Foto Banner Promoción',
                       current: branding.offerBannerImage
                     },
                     {
                       key: 'bookingHeroImage',
-                      title: 'Foto Cabecera "BEAUTY STUDIO"',
+                      title: 'Foto Cabecera Reserva',
                       current: branding.bookingHeroImage
                     },
                     {
@@ -528,7 +698,7 @@ export default function OwnerAdminPanel() {
                         alt={item.title}
                         className="photo-replace-preview"
                         onError={(e) => {
-                          e.currentTarget.src = '/assets/studio-nails.jpg';
+                          e.currentTarget.src = './assets/studio-nails.jpg';
                         }}
                       />
                       <div className="photo-replace-meta">
@@ -557,148 +727,263 @@ export default function OwnerAdminPanel() {
             </div>
           )}
 
-          {/* TAB 2: SERVICES CATALOG (NAILS, HAIR, COMBOS) */}
-          {tab === 'services' && (
-            <div className="admin-panel-box">
-              <div className="admin-box-top-bar">
-                <div>
-                  <h3>Catálogo de Servicios (Uñas, Peluquería Femenina y Combos)</h3>
-                  <p>
-                    Podés cambiar la foto, nombre, precio y duración de cada servicio de
-                    ejemplo o crear nuevos.
-                  </p>
-                </div>
-                <button type="button" className="admin-primary-btn" onClick={handleAddService}>
-                  <Plus size={15} />
-                  <span>Nuevo Servicio</span>
-                </button>
-              </div>
-
-              <div className="admin-items-list">
-                {services.map((srv) => (
-                  <div key={srv.id} className="admin-editable-item-row">
-                    <div className="admin-item-thumb-box">
-                      <img
-                        src={srv.image}
-                        alt={srv.name}
-                        onError={(e) => {
-                          e.currentTarget.src = '/assets/studio-nails.jpg';
-                        }}
-                      />
-                      <label className="mini-upload-overlay">
-                        <Upload size={12} />
-                        <span>Cambiar</span>
-                        <input
-                          type="file"
-                          accept="image/*"
-                          style={{ display: 'none' }}
-                          onChange={(e) =>
-                            handlePhotoUploadFor(
-                              e,
-                              (url) => handleServiceChange(srv.id, 'image', url),
-                              `srv-${srv.id}`
-                            )
-                          }
-                        />
-                      </label>
-                    </div>
-
-                    <div className="admin-item-fields-grid">
-                      <label>
-                        Nombre del Servicio
-                        <input
-                          type="text"
-                          value={srv.name}
-                          onChange={(e) => handleServiceChange(srv.id, 'name', e.target.value)}
-                        />
-                      </label>
-                      <label>
-                        Subtítulo / Adicional (Ej: + mini patterns)
-                        <input
-                          type="text"
-                          value={srv.addonLabel || ''}
-                          onChange={(e) =>
-                            handleServiceChange(srv.id, 'addonLabel', e.target.value)
-                          }
-                        />
-                      </label>
-                      <label>
-                        Categoría
-                        <select
-                          value={srv.category}
-                          onChange={(e) =>
-                            handleServiceChange(srv.id, 'category', e.target.value)
-                          }
-                        >
-                          <option value="unas">💅 Estética de Uñas</option>
-                          <option value="pelo">✂️ Peluquería Femenina</option>
-                          <option value="combos">✨ Combo Integral</option>
-                        </select>
-                      </label>
-                      <label>
-                        Precio ({operations.currencySymbol || '$'})
-                        <input
-                          type="number"
-                          value={srv.price}
-                          onChange={(e) =>
-                            handleServiceChange(srv.id, 'price', Number(e.target.value) || 0)
-                          }
-                        />
-                      </label>
-                      <label>
-                        Duración (min)
-                        <input
-                          type="number"
-                          value={srv.durationMin}
-                          onChange={(e) =>
-                            handleServiceChange(
-                              srv.id,
-                              'durationMin',
-                              Number(e.target.value) || 30
-                            )
-                          }
-                        />
-                      </label>
-                      <label className="full-span">
-                        Descripción corta para la clienta
-                        <input
-                          type="text"
-                          value={srv.shortDesc || ''}
-                          onChange={(e) =>
-                            handleServiceChange(srv.id, 'shortDesc', e.target.value)
-                          }
-                        />
-                      </label>
-                    </div>
-
+          {/* TAB 2: UNLIMITED CATEGORIES & UNLIMITED SERVICES / WORK ITEMS */}
+          {tab === 'categories_services' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+              {/* Top Section: Unlimited Categories */}
+              <div className="admin-panel-box">
+                <div className="admin-box-top-bar">
+                  <div>
+                    <h3>Categorías de Trabajo Ilimitadas ({categories.length})</h3>
+                    <p>
+                      Agregá, editá o quitá todas las categorías que necesites (Ej: Uñas,
+                      Peluquería, Pestañas, Cejas, Maquillaje, Depilación, Spa, Podología, etc.).
+                    </p>
+                  </div>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                    <input
+                      type="text"
+                      value={newCatIcon}
+                      onChange={(e) => setNewCatIcon(e.target.value)}
+                      placeholder="Ícono (Ej: 💅)"
+                      style={{
+                        width: 64,
+                        padding: '8px 10px',
+                        borderRadius: 10,
+                        border: '1px solid #d6cfd0',
+                        textAlign: 'center'
+                      }}
+                    />
+                    <input
+                      type="text"
+                      value={newCatName}
+                      onChange={(e) => setNewCatName(e.target.value)}
+                      placeholder="Nombre de nueva categoría..."
+                      style={{
+                        padding: '8px 12px',
+                        borderRadius: 10,
+                        border: '1px solid #d6cfd0',
+                        minWidth: 210
+                      }}
+                    />
                     <button
                       type="button"
-                      className="admin-delete-icon-btn"
-                      onClick={() => handleDeleteService(srv.id)}
-                      title="Eliminar servicio"
+                      className="admin-primary-btn"
+                      onClick={handleAddCategory}
                     >
-                      <Trash2 size={16} />
+                      <Plus size={15} />
+                      <span>Agregar Categoría</span>
                     </button>
                   </div>
-                ))}
+                </div>
+
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))',
+                    gap: 10,
+                    marginTop: 12
+                  }}
+                >
+                  {categories.map((cat) => (
+                    <div
+                      key={cat.id}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        background: '#f8f4f4',
+                        padding: '8px 10px',
+                        borderRadius: 12,
+                        border: '1px solid #eadfe0'
+                      }}
+                    >
+                      <input
+                        type="text"
+                        value={cat.icon || ''}
+                        onChange={(e) => handleCategoryChange(cat.id, 'icon', e.target.value)}
+                        style={{
+                          width: 42,
+                          padding: '6px',
+                          borderRadius: 8,
+                          border: '1px solid #d8cecf',
+                          textAlign: 'center'
+                        }}
+                        title="Ícono o Emoji"
+                      />
+                      <input
+                        type="text"
+                        value={cat.name || ''}
+                        onChange={(e) => handleCategoryChange(cat.id, 'name', e.target.value)}
+                        style={{
+                          flex: 1,
+                          padding: '6px 10px',
+                          borderRadius: 8,
+                          border: '1px solid #d8cecf',
+                          fontWeight: 600
+                        }}
+                        placeholder="Nombre de categoría"
+                      />
+                      <button
+                        type="button"
+                        className="admin-delete-icon-btn"
+                        onClick={() => handleDeleteCategory(cat.id)}
+                        title="Eliminar categoría"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Bottom Section: Unlimited Services / Work Catalog */}
+              <div className="admin-panel-box">
+                <div className="admin-box-top-bar">
+                  <div>
+                    <h3>Catálogo Ilimitado de Trabajos y Servicios ({services.length})</h3>
+                    <p>
+                      Sin límite de cantidad: cargá todos tus trabajos, cambiá sus fotos,
+                      precios, duración y categoría, o eliminá los ejemplos cuando quieras.
+                    </p>
+                  </div>
+                  <button type="button" className="admin-primary-btn" onClick={handleAddService}>
+                    <Plus size={15} />
+                    <span>Agregar Nuevo Trabajo / Servicio</span>
+                  </button>
+                </div>
+
+                <div className="admin-items-list">
+                  {services.map((srv) => (
+                    <div key={srv.id} className="admin-editable-item-row">
+                      <div className="admin-item-thumb-box">
+                        <img
+                          src={srv.image}
+                          alt={srv.name}
+                          onError={(e) => {
+                            e.currentTarget.src = './assets/studio-nails.jpg';
+                          }}
+                        />
+                        <label className="mini-upload-overlay">
+                          <Upload size={12} />
+                          <span>Cambiar</span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            style={{ display: 'none' }}
+                            onChange={(e) =>
+                              handlePhotoUploadFor(
+                                e,
+                                (url) => handleServiceChange(srv.id, 'image', url),
+                                `srv-${srv.id}`
+                              )
+                            }
+                          />
+                        </label>
+                      </div>
+
+                      <div className="admin-item-fields-grid">
+                        <label>
+                          Nombre del Trabajo / Servicio
+                          <input
+                            type="text"
+                            value={srv.name}
+                            onChange={(e) => handleServiceChange(srv.id, 'name', e.target.value)}
+                          />
+                        </label>
+                        <label>
+                          Subtítulo / Adicional (Ej: + detalle)
+                          <input
+                            type="text"
+                            value={srv.addonLabel || ''}
+                            onChange={(e) =>
+                              handleServiceChange(srv.id, 'addonLabel', e.target.value)
+                            }
+                          />
+                        </label>
+                        <label>
+                          Categoría
+                          <select
+                            value={srv.category}
+                            onChange={(e) =>
+                              handleServiceChange(srv.id, 'category', e.target.value)
+                            }
+                          >
+                            {categories.map((cat) => (
+                              <option key={cat.id} value={cat.id}>
+                                {cat.icon} {cat.name}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <label>
+                          Precio ({operations.currencySymbol || '$'})
+                          <input
+                            type="number"
+                            value={srv.price}
+                            onChange={(e) =>
+                              handleServiceChange(srv.id, 'price', Number(e.target.value) || 0)
+                            }
+                          />
+                        </label>
+                        <label>
+                          Duración (min)
+                          <input
+                            type="number"
+                            value={srv.durationMin}
+                            onChange={(e) =>
+                              handleServiceChange(
+                                srv.id,
+                                'durationMin',
+                                Number(e.target.value) || 30
+                              )
+                            }
+                          />
+                        </label>
+                        <label className="full-span">
+                          Descripción corta para la clienta
+                          <input
+                            type="text"
+                            value={srv.shortDesc || ''}
+                            onChange={(e) =>
+                              handleServiceChange(srv.id, 'shortDesc', e.target.value)
+                            }
+                          />
+                        </label>
+                      </div>
+
+                      <button
+                        type="button"
+                        className="admin-delete-icon-btn"
+                        onClick={() => handleDeleteService(srv.id)}
+                        title="Eliminar trabajo"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           )}
 
-          {/* TAB 3: ADD INSPO GALLERY & STAFF */}
-          {tab === 'inspo' && (
+          {/* TAB 3: UNLIMITED COLLABORATORS & INSPO GALLERY */}
+          {tab === 'collaborators_inspo' && (
             <div className="admin-grid-2col">
-              {/* Left: Specialists / Staff */}
+              {/* Left: Unlimited Collaborators / Staff */}
               <div className="admin-panel-box">
                 <div className="admin-box-top-bar">
-                  <h3>Equipo de Profesionales</h3>
+                  <div>
+                    <h3>Colaboradores / Profesionales ({specialists.length})</h3>
+                    <p>Podés poner o quitar colaboradores libremente sin límite.</p>
+                  </div>
                   <button
                     type="button"
                     className="admin-primary-btn"
                     onClick={handleAddSpecialist}
                   >
                     <Plus size={14} />
-                    <span>Agregar Profesional</span>
+                    <span>+ Poner Colaborador/a</span>
                   </button>
                 </div>
 
@@ -710,7 +995,7 @@ export default function OwnerAdminPanel() {
                           src={spec.avatar}
                           alt={spec.name}
                           onError={(e) => {
-                            e.currentTarget.src = '/assets/stylist-main.jpg';
+                            e.currentTarget.src = './assets/stylist-main.jpg';
                           }}
                         />
                         <label className="mini-upload-overlay">
@@ -737,7 +1022,7 @@ export default function OwnerAdminPanel() {
                           onChange={(e) =>
                             handleSpecialistChange(spec.id, 'name', e.target.value)
                           }
-                          placeholder="Nombre de la profesional"
+                          placeholder="Nombre del/la colaborador/a"
                         />
                         <input
                           type="text"
@@ -745,7 +1030,15 @@ export default function OwnerAdminPanel() {
                           onChange={(e) =>
                             handleSpecialistChange(spec.id, 'role', e.target.value)
                           }
-                          placeholder="Especialidad"
+                          placeholder="Especialidad / Rol"
+                        />
+                        <input
+                          type="text"
+                          value={spec.studioCode || ''}
+                          onChange={(e) =>
+                            handleSpecialistChange(spec.id, 'studioCode', e.target.value)
+                          }
+                          placeholder="Sillón / Gabinete / Sucursal"
                         />
                       </div>
 
@@ -753,6 +1046,7 @@ export default function OwnerAdminPanel() {
                         type="button"
                         className="admin-delete-icon-btn"
                         onClick={() => handleDeleteSpecialist(spec.id)}
+                        title="Quitar colaborador/a"
                       >
                         <Trash2 size={15} />
                       </button>
@@ -764,10 +1058,13 @@ export default function OwnerAdminPanel() {
               {/* Right: Add Inspo Photos */}
               <div className="admin-panel-box">
                 <div className="admin-box-top-bar">
-                  <h3>Galería de Fotos "Add Inspo" ({inspoGallery.length})</h3>
+                  <div>
+                    <h3>Galería de Trabajos "Add Inspo" ({inspoGallery.length})</h3>
+                    <p>Subí todas las fotos de muestra que quieras o borrá los ejemplos.</p>
+                  </div>
                   <label className="admin-primary-btn" style={{ cursor: 'pointer' }}>
                     <Upload size={14} />
-                    <span>Subir Nueva Foto Inspo</span>
+                    <span>Subir Nueva Foto</span>
                     <input
                       type="file"
                       accept="image/*"
@@ -785,7 +1082,7 @@ export default function OwnerAdminPanel() {
                           src={item.image}
                           alt={item.title}
                           onError={(e) => {
-                            e.currentTarget.src = '/assets/studio-nails.jpg';
+                            e.currentTarget.src = './assets/studio-nails.jpg';
                           }}
                         />
                         <label className="mini-upload-overlay">
@@ -817,9 +1114,11 @@ export default function OwnerAdminPanel() {
                             handleInspoChange(item.id, 'category', e.target.value)
                           }
                         >
-                          <option value="unas">💅 Uñas</option>
-                          <option value="pelo">✂️ Pelo</option>
-                          <option value="combos">✨ Combo</option>
+                          {categories.map((cat) => (
+                            <option key={cat.id} value={cat.id}>
+                              {cat.icon} {cat.shortLabel || cat.name}
+                            </option>
+                          ))}
                         </select>
                         <button
                           type="button"
@@ -836,15 +1135,15 @@ export default function OwnerAdminPanel() {
             </div>
           )}
 
-          {/* TAB 4: SCHEDULE, DEPOSIT 50%, ALIAS & WHATSAPP */}
+          {/* TAB 4: SCHEDULE, WORK OPTIONS, DEPOSIT & WHATSAPP */}
           {tab === 'schedule' && (
             <div className="admin-grid-2col">
               <div className="admin-panel-box">
-                <h3>Cobro de Señas, Alias Bancario y WhatsApp del Salón</h3>
+                <h3>Cobro de Señas, Alias Bancario, Teléfono y Dirección</h3>
                 <div className="admin-form-stack">
                   <div className="admin-row-2">
                     <label>
-                      Porcentaje de Seña Obligatoria (%)
+                      Porcentaje de Seña (%)
                       <input
                         type="number"
                         min={0}
@@ -870,7 +1169,7 @@ export default function OwnerAdminPanel() {
                     </label>
                   </div>
                   <label>
-                    Alias de MercadoPago / Banco (donde tus clientas transfieren la seña)
+                    Alias Bancario / MercadoPago (Editable)
                     <input
                       type="text"
                       value={operations.paymentAlias || ''}
@@ -886,7 +1185,7 @@ export default function OwnerAdminPanel() {
                     />
                   </label>
                   <label>
-                    Nombre del Titular de la Cuenta
+                    Titular de la Cuenta (Editable)
                     <input
                       type="text"
                       value={operations.paymentHolder || ''}
@@ -896,12 +1195,32 @@ export default function OwnerAdminPanel() {
                     />
                   </label>
                   <label>
-                    Número de WhatsApp donde recibís los turnos (con código de país, ej: 54911...)
+                    Entidad / Banco
+                    <input
+                      type="text"
+                      value={operations.paymentBankName || ''}
+                      onChange={(e) =>
+                        updateOperationsField('paymentBankName', e.target.value)
+                      }
+                    />
+                  </label>
+                  <label>
+                    WhatsApp de Recepción de Turnos (con código de país, ej: 54911...)
                     <input
                       type="text"
                       value={operations.whatsappNumber || ''}
                       onChange={(e) =>
                         updateOperationsField('whatsappNumber', e.target.value)
+                      }
+                    />
+                  </label>
+                  <label>
+                    Teléfono Visible en Pantallas
+                    <input
+                      type="text"
+                      value={operations.phoneDisplay || ''}
+                      onChange={(e) =>
+                        updateOperationsField('phoneDisplay', e.target.value)
                       }
                     />
                   </label>
@@ -913,13 +1232,96 @@ export default function OwnerAdminPanel() {
                       onChange={(e) => updateOperationsField('address', e.target.value)}
                     />
                   </label>
+                  <label>
+                    Horarios de Atención (Texto visible)
+                    <input
+                      type="text"
+                      value={operations.businessHoursText || ''}
+                      onChange={(e) =>
+                        updateOperationsField('businessHoursText', e.target.value)
+                      }
+                    />
+                  </label>
                 </div>
               </div>
 
               <div className="admin-panel-box">
-                <h3>Horarios de Turnos Disponibles</h3>
+                <h3>Opciones de Trabajo, Días y Horarios Disponibles (Sin Límite)</h3>
+
+                {/* Work Options */}
+                <p style={{ marginTop: 6 }}>
+                  <strong>Opciones de Trabajo / Formas / Variantes:</strong> (Ej: Almendra,
+                  Coffin, Con Retiro, Pelo Largo, etc.)
+                </p>
+                <div className="slots-editor-chips">
+                  {(operations.workOptions || []).map((opt) => (
+                    <span key={opt} className="slot-admin-chip">
+                      <strong>{opt}</strong>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveWorkOption(opt)}
+                        title="Quitar opción"
+                      >
+                        ✕
+                      </button>
+                    </span>
+                  ))}
+                </div>
+                <div className="add-slot-row" style={{ marginBottom: 18 }}>
+                  <input
+                    type="text"
+                    value={newWorkOptionInput}
+                    onChange={(e) => setNewWorkOptionInput(e.target.value)}
+                    placeholder="Ej: Con Retiro Previo (+20 min)"
+                  />
+                  <button
+                    type="button"
+                    className="admin-primary-btn"
+                    onClick={handleAddWorkOption}
+                  >
+                    <Plus size={14} />
+                    <span>Agregar Opción</span>
+                  </button>
+                </div>
+
+                {/* Available Dates / Days */}
                 <p>
-                  Configurá los bloques horarios que verán tus clientas al elegir fecha y hora:
+                  <strong>Días / Fechas Disponibles para Turnos:</strong>
+                </p>
+                <div className="slots-editor-chips">
+                  {(operations.availableDates || []).map((d) => (
+                    <span key={d} className="slot-admin-chip">
+                      <strong>{d}</strong>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveDateOption(d)}
+                        title="Quitar día"
+                      >
+                        ✕
+                      </button>
+                    </span>
+                  ))}
+                </div>
+                <div className="add-slot-row" style={{ marginBottom: 18 }}>
+                  <input
+                    type="text"
+                    value={newDateInput}
+                    onChange={(e) => setNewDateInput(e.target.value)}
+                    placeholder="Ej: Sábado 22"
+                  />
+                  <button
+                    type="button"
+                    className="admin-primary-btn"
+                    onClick={handleAddDateOption}
+                  >
+                    <Plus size={14} />
+                    <span>Agregar Día</span>
+                  </button>
+                </div>
+
+                {/* Time Slots */}
+                <p>
+                  <strong>Horarios de Turnos Disponibles:</strong>
                 </p>
                 <div className="slots-editor-chips">
                   {(operations.timeSlots || []).map((slot) => (
@@ -963,7 +1365,7 @@ export default function OwnerAdminPanel() {
             </div>
           )}
 
-          {/* TAB 5: APPOINTMENTS AGENDA & ADDED INSPO VIEWER */}
+          {/* TAB 5: APPOINTMENTS AGENDA */}
           {tab === 'agenda' && (
             <div className="admin-panel-box">
               <h3>Agenda de Turnos y Fotos "Added Inspo" de cada Clienta</h3>
@@ -978,13 +1380,12 @@ export default function OwnerAdminPanel() {
                         </h4>
                         <p>
                           📅 <strong>{apt.dateLabel}</strong> ({apt.timeRange}) • 👩‍🎨{' '}
-                          {apt.specialistName} • 💎 Estilo: {apt.nailShape}
+                          {apt.specialistName} • 💎 Opción: {apt.nailShape}
                         </p>
                         {apt.notes && <p className="apt-note-line">📝 "{apt.notes}"</p>}
                       </div>
                     </div>
 
-                    {/* Visual Added Inspo Thumbnails Attached by the Client */}
                     <div className="admin-apt-inspo-thumbs">
                       <span>Added Inspo:</span>
                       <div className="apt-thumbs-row">
@@ -994,7 +1395,7 @@ export default function OwnerAdminPanel() {
                             src={img}
                             alt="inspo"
                             onError={(e) => {
-                              e.currentTarget.src = '/assets/studio-nails.jpg';
+                              e.currentTarget.src = './assets/studio-nails.jpg';
                             }}
                           />
                         ))}
@@ -1003,9 +1404,9 @@ export default function OwnerAdminPanel() {
 
                     <div className="admin-apt-right">
                       <div className="apt-money-info">
-                        <span>Total: ${Number(apt.totalPrice).toLocaleString('es-AR')}</span>
+                        <span>Total: ${Number(apt.totalPrice || 0).toLocaleString('es-AR')}</span>
                         <strong>
-                          Seña: ${Number(apt.depositAmount).toLocaleString('es-AR')}
+                          Seña: ${Number(apt.depositAmount || 0).toLocaleString('es-AR')}
                         </strong>
                       </div>
                       <select
@@ -1039,9 +1440,10 @@ export default function OwnerAdminPanel() {
               <div className="admin-panel-box">
                 <h3>Base de Datos Independiente de este Cliente</h3>
                 <p>
-                  Todos los datos y fotos de <strong>{branding.businessName}</strong> se
-                  guardan de forma aislada en <code>server_data/tenants/{activeSlug}.json</code>{' '}
-                  y en <code>/public/uploads/{activeSlug}/</code>.
+                  Todos los datos, categorías, colaboradores, servicios y fotos de{' '}
+                  <strong>{branding.businessName}</strong> quedan guardados permanentemente en
+                  la base de datos aislada <code>{tenantDb.dbNamespace}</code> hasta que el
+                  cliente decida cambiarlos o eliminarlos.
                 </p>
 
                 <div className="db-actions-row">
@@ -1071,7 +1473,7 @@ export default function OwnerAdminPanel() {
                     onClick={resetCurrentTenantToDefaults}
                   >
                     <RotateCcw size={15} />
-                    <span>Restaurar Ejemplos de Fábrica</span>
+                    <span>Restaurar Plantilla Base</span>
                   </button>
                 </div>
               </div>
@@ -1093,7 +1495,7 @@ export default function OwnerAdminPanel() {
                           }
                         }))
                       }
-                      placeholder="https://xyzcompany.supabase.co"
+                      placeholder="https://tu-proyecto.supabase.co"
                     />
                   </label>
                   <label>

@@ -10,7 +10,11 @@ import {
   Compass,
   User,
   Calendar,
-  Wand2
+  Wand2,
+  MapPin,
+  Phone,
+  Clock,
+  Plus
 } from 'lucide-react';
 import { useSaaS } from '../../context/SaaSContext';
 import EditableMedia from '../common/EditableMedia';
@@ -22,18 +26,27 @@ export default function HomeDashboard({ onNavigate }) {
     activeSlug,
     tenantDb,
     updateBrandingField,
+    updateOperationsField,
     persistTenantUpdate,
     clientProfile,
     setClientProfile,
     selectServiceAndGoToBooking,
+    liveEditMode,
     setActiveScreen,
-    setActiveModal
+    setActiveModal,
+    showToast
   } = useSaaS();
 
-  const { branding, services = [], appointments = [], operations = {} } = tenantDb;
+  const {
+    branding = {},
+    categories = [],
+    services = [],
+    appointments = [],
+    operations = {}
+  } = tenantDb;
   const currency = operations.currencySymbol || '$';
   const [searchQuery, setSearchQuery] = useState('');
-  const [quickCat, setQuickCat] = useState('all'); // 'all' | 'unas' | 'pelo'
+  const [quickCat, setQuickCat] = useState('all');
   const [editingClientName, setEditingClientName] = useState(false);
 
   const goScreen = (scr) => {
@@ -41,7 +54,7 @@ export default function HomeDashboard({ onNavigate }) {
     else setActiveScreen(scr);
   };
 
-  // Filter popular services by search and quick category (Uñas vs Pelo)
+  // Filter services by search and dynamic category (no artificial limit on count)
   const filteredPopular = services.filter((srv) => {
     const matchesCat = quickCat === 'all' ? true : srv.category === quickCat;
     const matchesQuery =
@@ -52,6 +65,17 @@ export default function HomeDashboard({ onNavigate }) {
   });
 
   const latestAppointment = appointments[0] || null;
+
+  const getCategoryMeta = (catId) => {
+    return (
+      categories.find((c) => c.id === catId) || {
+        id: catId,
+        name: catId || 'General',
+        shortLabel: catId || 'General',
+        icon: '✨'
+      }
+    );
+  };
 
   const renderServiceIcon = (iconName, category) => {
     if (iconName === 'scissors' || category === 'pelo') return <Scissors size={16} />;
@@ -71,6 +95,31 @@ export default function HomeDashboard({ onNavigate }) {
     persistTenantUpdate((prev) => ({
       ...prev,
       services: prev.services.map((s) => (s.id === srvId ? { ...s, name: newName } : s))
+    }));
+  };
+
+  const handleAddCategoryInline = () => {
+    const newId = `cat-${Date.now()}`;
+    const newCat = {
+      id: newId,
+      name: 'Nueva Categoría',
+      shortLabel: 'Nueva Cat.',
+      icon: '✨'
+    };
+    persistTenantUpdate((prev) => ({
+      ...prev,
+      categories: [...(prev.categories || []), newCat]
+    }));
+    setQuickCat(newId);
+    showToast('➕ Nueva categoría agregada. Podés editar su nombre.');
+  };
+
+  const handleUpdateCategoryLabel = (catId, newLabel) => {
+    persistTenantUpdate((prev) => ({
+      ...prev,
+      categories: (prev.categories || []).map((c) =>
+        c.id === catId ? { ...c, shortLabel: newLabel, name: newLabel } : c
+      )
     }));
   };
 
@@ -105,7 +154,10 @@ export default function HomeDashboard({ onNavigate }) {
             onClick={() => setActiveModal('ai')}
           >
             <Wand2 size={13} />
-            <span>Asesora IA Uñas & Pelo</span>
+            <EditableText
+              value={branding.aiButtonLabel || 'Asesora IA'}
+              onSave={(val) => updateBrandingField('aiButtonLabel', val)}
+            />
           </button>
 
           <button
@@ -119,11 +171,17 @@ export default function HomeDashboard({ onNavigate }) {
           </button>
         </div>
 
-        {/* Greeting Header ("Hi, Mahi — Welcome Back!") */}
+        {/* Greeting Header (100% Editable, zero hardcoded proper names) */}
         <div className="home-greeting-block">
+          <div className="home-salon-mini-tag">
+            <EditableText
+              value={branding.businessName}
+              onSave={(val) => updateBrandingField('businessName', val)}
+            />
+          </div>
           <h2 className="home-greeting-title">
             <EditableText
-              value={branding.homeWelcomePrefix}
+              value={branding.homeWelcomePrefix || 'Hola,'}
               onSave={(val) => updateBrandingField('homeWelcomePrefix', val)}
             />{' '}
             {editingClientName ? (
@@ -135,6 +193,7 @@ export default function HomeDashboard({ onNavigate }) {
                   const next = { ...clientProfile, name: e.target.value };
                   setClientProfile(next);
                   saveClientProfileMemory(activeSlug, next);
+                  updateBrandingField('defaultClientGreetingName', e.target.value);
                 }}
                 onBlur={() => setEditingClientName(false)}
                 onKeyDown={(e) => e.key === 'Enter' && setEditingClientName(false)}
@@ -144,9 +203,9 @@ export default function HomeDashboard({ onNavigate }) {
               <span
                 className="client-name-editable"
                 onClick={() => setEditingClientName(true)}
-                title="Toca para poner tu nombre"
+                title="Tocá para cambiar el nombre"
               >
-                {clientProfile.name || 'Mahi'}
+                {clientProfile.name || branding.defaultClientGreetingName || 'Clienta'}
               </span>
             )}
           </h2>
@@ -156,37 +215,82 @@ export default function HomeDashboard({ onNavigate }) {
             tag="p"
             className="home-greeting-sub"
           />
+
+          {/* Editable Address, Hours & Phone Pill Bar */}
+          <div className="home-business-info-bar">
+            <span className="home-info-chip">
+              <MapPin size={11} />
+              <EditableText
+                value={operations.address || 'Dirección (Editable)'}
+                onSave={(val) => updateOperationsField('address', val)}
+              />
+            </span>
+            <span className="home-info-chip">
+              <Clock size={11} />
+              <EditableText
+                value={operations.businessHoursText || 'Horarios (Editable)'}
+                onSave={(val) => updateOperationsField('businessHoursText', val)}
+              />
+            </span>
+            <span className="home-info-chip">
+              <Phone size={11} />
+              <EditableText
+                value={operations.phoneDisplay || operations.whatsappNumber || 'Teléfono'}
+                onSave={(val) => updateOperationsField('phoneDisplay', val)}
+              />
+            </span>
+          </div>
         </div>
 
-        {/* Intuitive Quick Need Selector: ¿Uñas o Pelo? */}
+        {/* Dynamic Unlimited Categories Selector */}
         <div className="quick-intent-pills">
           <button
             type="button"
             className={`intent-pill ${quickCat === 'all' ? 'active' : ''}`}
             onClick={() => setQuickCat('all')}
           >
-            ✨ Todo
+            <EditableText
+              value={branding.allCategoriesLabel || '✨ Todo'}
+              onSave={(val) => updateBrandingField('allCategoriesLabel', val)}
+            />
           </button>
-          <button
-            type="button"
-            className={`intent-pill ${quickCat === 'unas' ? 'active' : ''}`}
-            onClick={() => setQuickCat('unas')}
-          >
-            💅 Pintar / Uñas
-          </button>
-          <button
-            type="button"
-            className={`intent-pill ${quickCat === 'pelo' ? 'active' : ''}`}
-            onClick={() => setQuickCat('pelo')}
-          >
-            ✂️ Cortar / Pelo
-          </button>
+
+          {categories.map((cat) => (
+            <button
+              key={cat.id}
+              type="button"
+              className={`intent-pill ${quickCat === cat.id ? 'active' : ''}`}
+              onClick={() => setQuickCat(cat.id)}
+            >
+              <span>{cat.icon}</span>{' '}
+              <EditableText
+                value={cat.shortLabel || cat.name}
+                onSave={(val) => handleUpdateCategoryLabel(cat.id, val)}
+              />
+            </button>
+          ))}
+
+          {liveEditMode && (
+            <button
+              type="button"
+              className="intent-pill add-cat-pill"
+              onClick={handleAddCategoryInline}
+              title="Agregar nueva categoría"
+            >
+              <Plus size={12} />
+              <span>Categoría</span>
+            </button>
+          )}
+
           <button
             type="button"
             className="intent-pill inspo-jump"
             onClick={() => goScreen('inspo')}
           >
-            🖤 Add Inspo
+            <EditableText
+              value={branding.inspoShortcutLabel || '🖤 Add Inspo'}
+              onSave={(val) => updateBrandingField('inspoShortcutLabel', val)}
+            />
           </button>
         </div>
 
@@ -196,7 +300,7 @@ export default function HomeDashboard({ onNavigate }) {
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder={branding.searchPlaceholder || 'Buscar uñas, corte, color...'}
+            placeholder={branding.searchPlaceholder || 'Buscar servicio...'}
             className="home-search-input"
           />
           <button
@@ -209,7 +313,7 @@ export default function HomeDashboard({ onNavigate }) {
           </button>
         </div>
 
-        {/* Popular Services Section */}
+        {/* Popular Services Section (Unlimited items displayed) */}
         <div className="home-section-header">
           <EditableText
             value={branding.popularSectionTitle}
@@ -222,50 +326,53 @@ export default function HomeDashboard({ onNavigate }) {
             className="home-see-all-link"
             onClick={() => goScreen('services')}
           >
-            Ver todos
+            <EditableText
+              value={branding.seeAllLabel || 'Ver todos'}
+              onSave={(val) => updateBrandingField('seeAllLabel', val)}
+            />
           </button>
         </div>
 
         <div className="popular-cards-row">
-          {filteredPopular.slice(0, 4).map((srv) => (
-            <div key={srv.id} className="popular-mini-card">
-              <div className="popular-card-top">
-                <span className="popular-icon-badge">
-                  {renderServiceIcon(srv.popularIcon, srv.category)}
-                </span>
-                <span className="popular-dots">⋮</span>
-              </div>
-              <div className="popular-card-title">
-                <EditableText
-                  value={srv.name}
-                  onSave={(val) => handleServiceNameEdit(srv.id, val)}
-                />
-              </div>
-              <div className="popular-card-sub">
-                {srv.category === 'unas'
-                  ? 'Estética de Uñas'
-                  : srv.category === 'pelo'
-                  ? 'Peluquería'
-                  : 'Combo Integral'}
-              </div>
-              <div className="popular-card-footer">
-                <span className="popular-price">
-                  {currency}
+          {filteredPopular.map((srv) => {
+            const catMeta = getCategoryMeta(srv.category);
+            return (
+              <div key={srv.id} className="popular-mini-card">
+                <div className="popular-card-top">
+                  <span className="popular-icon-badge">
+                    {renderServiceIcon(srv.popularIcon, srv.category)}
+                  </span>
+                  <span className="popular-dots">{catMeta.icon}</span>
+                </div>
+                <div className="popular-card-title">
                   <EditableText
-                    value={srv.price.toLocaleString('es-AR')}
-                    onSave={(val) => handleServicePriceEdit(srv.id, val)}
+                    value={srv.name}
+                    onSave={(val) => handleServiceNameEdit(srv.id, val)}
                   />
-                </span>
-                <button
-                  type="button"
-                  className="popular-book-mini-btn"
-                  onClick={() => selectServiceAndGoToBooking(srv.id, false)}
-                >
-                  Reservar
-                </button>
+                </div>
+                <div className="popular-card-sub">{catMeta.name}</div>
+                <div className="popular-card-footer">
+                  <span className="popular-price">
+                    {currency}
+                    <EditableText
+                      value={Number(srv.price || 0).toLocaleString('es-AR')}
+                      onSave={(val) => handleServicePriceEdit(srv.id, val)}
+                    />
+                  </span>
+                  <button
+                    type="button"
+                    className="popular-book-mini-btn"
+                    onClick={() => selectServiceAndGoToBooking(srv.id, false)}
+                  >
+                    <EditableText
+                      value={branding.bookButtonLabel || 'Reservar'}
+                      onSave={(val) => updateBrandingField('bookButtonLabel', val)}
+                    />
+                  </button>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         {/* Special Offers Section (20% OFF Dusty Rose Banner) */}
@@ -281,7 +388,10 @@ export default function HomeDashboard({ onNavigate }) {
             className="home-see-all-link"
             onClick={() => goScreen('services')}
           >
-            Ver combos
+            <EditableText
+              value={branding.seeCombosLabel || 'Ver más'}
+              onSave={(val) => updateBrandingField('seeCombosLabel', val)}
+            />
           </button>
         </div>
 
@@ -347,19 +457,19 @@ export default function HomeDashboard({ onNavigate }) {
           <div
             className="upcoming-appointment-card"
             onClick={() => goScreen('booking')}
-            title="Toca para ver los detalles de tu turno"
+            title="Tocá para ver los detalles de tu turno"
           >
             <img
-              src={latestAppointment.inspoImages?.[0] || '/assets/hair-cut.jpg'}
+              src={latestAppointment.inspoImages?.[0] || './assets/hair-cut.jpg'}
               alt={latestAppointment.serviceName}
               className="upcoming-thumb"
               onError={(e) => {
-                e.currentTarget.src = '/assets/studio-nails.jpg';
+                e.currentTarget.src = './assets/studio-nails.jpg';
               }}
             />
             <div className="upcoming-info">
               <div className="upcoming-service-name">{latestAppointment.serviceName}</div>
-              <div className="upcoming-stylist">Por {latestAppointment.specialistName}</div>
+              <div className="upcoming-stylist">{latestAppointment.specialistName}</div>
             </div>
             <div className="upcoming-datetime">
               <div className="upcoming-date">{latestAppointment.dateLabel}</div>
@@ -369,8 +479,21 @@ export default function HomeDashboard({ onNavigate }) {
         ) : (
           <div className="upcoming-appointment-card empty" onClick={() => goScreen('services')}>
             <div className="upcoming-info">
-              <div className="upcoming-service-name">Aún no tenés turnos activos</div>
-              <div className="upcoming-stylist">Tocá aquí para elegir Uñas o Peluquería</div>
+              <div className="upcoming-service-name">
+                <EditableText
+                  value={branding.emptyAppointmentTitle || 'Aún no tenés turnos agendados'}
+                  onSave={(val) => updateBrandingField('emptyAppointmentTitle', val)}
+                />
+              </div>
+              <div className="upcoming-stylist">
+                <EditableText
+                  value={
+                    branding.emptyAppointmentSub ||
+                    'Tocá aquí para elegir tu servicio y horario'
+                  }
+                  onSave={(val) => updateBrandingField('emptyAppointmentSub', val)}
+                />
+              </div>
             </div>
           </div>
         )}

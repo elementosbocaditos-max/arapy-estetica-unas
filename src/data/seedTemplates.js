@@ -1,13 +1,14 @@
 // ============================================================================
-// ARAPY MULTI-TENANT SEED TEMPLATES
-// Every single text, image, service, specialist, schedule, and color is stored
-// inside the tenant's isolated database and is 100% editable by the business owner.
+// ARAPY MULTI-TENANT WHITE-LABEL SEED TEMPLATES
+// Zero proper names hardcoded. 100% of business data, categories, services,
+// collaborators, work options, schedules, phones, addresses, photos, and UI
+// labels live in each tenant's isolated database and are 100% editable.
 // ============================================================================
 
 export const THEME_PRESETS = [
   {
     id: 'dusty-rose-luxury',
-    name: 'Dusty Rose & Dark Studio (Original Referencia)',
+    name: 'Dusty Rose & Dark Studio (Referencia Original)',
     primaryRose: '#D67479',
     primaryRoseDark: '#B8585E',
     primaryRoseSoft: '#F6E2E3',
@@ -61,44 +62,45 @@ export const THEME_PRESETS = [
 
 export const DEFAULT_MASTER_REGISTRY = {
   arapyConfig: {
-    platformName: 'ARAPY Cloud Control — Beauty & Nail SaaS',
+    platformName: 'ARAPY Cloud Control — Multi-Negocios',
     masterPin: '2026',
     supportWhatsapp: '5493764000000',
     centralWebhookUrl: ''
   },
   tenants: [
     {
-      slug: 'daniela-gimenez',
-      businessName: 'Daniela Giménez — Nail & Hair Studio',
-      ownerName: 'Daniela Giménez',
-      ownerPin: '1234',
-      plan: 'PRO IA FULL',
-      status: 'active', // 'active' | 'trial' | 'suspended'
-      city: 'Argentina',
-      createdAt: '2026-11-01T10:00:00.000Z',
-      dbNamespace: 'arapy_tenant_db::daniela-gimenez'
-    },
-    {
-      slug: 'velvet-atelier',
-      businessName: 'Velvet Nails & Hair Boutique',
-      ownerName: 'Valentina Gómez',
+      slug: 'estudio-principal',
+      businessName: 'Nombre de tu Salón (Editable)',
+      ownerName: 'Titular del Negocio (Editable)',
       ownerPin: '1234',
       plan: 'PRO IA FULL',
       status: 'active',
-      city: 'Buenos Aires',
+      city: 'Tu Ciudad (Editable)',
+      createdAt: '2026-11-01T10:00:00.000Z',
+      dbNamespace: 'arapy_tenant_db::estudio-principal'
+    },
+    {
+      slug: 'sucursal-demo-2',
+      businessName: 'Salón Ejemplo 2 (Editable)',
+      ownerName: 'Titular Sucursal 2 (Editable)',
+      ownerPin: '1234',
+      plan: 'PRO IA FULL',
+      status: 'active',
+      city: 'Sucursal 2 (Editable)',
       createdAt: '2026-11-05T14:00:00.000Z',
-      dbNamespace: 'arapy_tenant_db::velvet-atelier'
+      dbNamespace: 'arapy_tenant_db::sucursal-demo-2'
     }
   ]
 };
 
-export function createTenantSeedDatabase(slug = 'daniela-gimenez', customMeta = {}) {
-  const isVelvet = slug === 'velvet-atelier';
+export function createTenantSeedDatabase(slug = 'estudio-principal', customMeta = {}) {
+  const isSecondDemo = slug === 'sucursal-demo-2';
   const businessName =
     customMeta.businessName ||
-    (isVelvet ? 'Velvet Nails & Hair Boutique' : 'Daniela Giménez Studio');
+    (isSecondDemo ? 'Salón Ejemplo 2 (Editable)' : 'Nombre de tu Salón (Editable)');
   const ownerName =
-    customMeta.ownerName || (isVelvet ? 'Valentina Gómez' : 'Daniela Giménez');
+    customMeta.ownerName ||
+    (isSecondDemo ? 'Titular Sucursal 2 (Editable)' : 'Titular del Negocio (Editable)');
 
   return {
     slug,
@@ -107,71 +109,99 @@ export function createTenantSeedDatabase(slug = 'daniela-gimenez', customMeta = 
     status: customMeta.status || 'active',
     plan: customMeta.plan || 'PRO IA FULL',
 
-    // 1. BRANDING & SCREENS COPY (100% Editable on-screen or in Owner Panel)
+    // 1. BRANDING & ALL UI TEXTS / LABELS (100% Editable on-screen or in Owner Panel)
     branding: {
       businessName,
       studioBadgeTitle: 'B E A U T Y   S T U D I O',
-      studioSubCode: isVelvet ? 'VN Studio' : 'DG Studio',
-      logoText: isVelvet ? 'VN' : 'DG',
+      studioSubCode: 'Sucursal Principal',
+      logoText: 'TS',
       logoUrl: '',
+      defaultClientGreetingName: 'Clienta',
 
-      // Screen 1: Splash Hero ("Look Good, Feel Beautiful")
+      // Screen 1: Splash Hero
       splashHeroImage: './assets/splash-hero.jpg',
       splashTitleLine1: 'Lucí Increíble,',
       splashTitleLine2Prefix: 'Sentite ',
       splashTitleHighlight: 'Única',
-      splashSubtitle: 'Estética de Uñas & Peluquería Femenina diseñada para vos',
+      splashSubtitle: 'Estética de Uñas & Peluquería Femenina diseñada a tu medida',
       splashPrimaryButton: 'Reservar Turno',
       splashSecondaryButton: 'Explorar Servicios',
 
-      // Screen 2: Home Dashboard ("Hi, Mahi — Welcome Back!")
+      // Screen 2: Home Dashboard
       homeWelcomePrefix: 'Hola,',
-      homeWelcomeSubtitle: '¡Bienvenida de nuevo a tu espacio de belleza!',
-      searchPlaceholder: 'Buscar uñas, kapping, corte, color...',
-      popularSectionTitle: 'Servicios Populares',
-      offersSectionTitle: 'Ofertas Especiales',
+      homeWelcomeSubtitle: '¡Bienvenida a nuestro espacio de belleza!',
+      searchPlaceholder: 'Buscar servicio, diseño, tratamiento...',
+      allCategoriesLabel: '✨ Todo',
+      inspoShortcutLabel: '🖤 Add Inspo',
+      popularSectionTitle: 'Servicios Destacados',
+      seeAllLabel: 'Ver todos',
+      offersSectionTitle: 'Promociones Activas',
+      seeCombosLabel: 'Ver más',
       upcomingSectionTitle: 'Próximo Turno',
+      emptyAppointmentTitle: 'Aún no tenés turnos agendados',
+      emptyAppointmentSub: 'Tocá aquí para elegir tu servicio y horario',
+      bookButtonLabel: 'Reservar',
+      aiButtonLabel: 'Asesora IA',
 
-      // Special Offer Banner (20% OFF card)
+      // Special Offer Banner
       offerDiscountBadge: '20% OFF',
-      offerTitle: 'En Coloración + Kapping Gel',
-      offerSubtitle: 'Solo por este fin de semana',
+      offerTitle: 'Promoción Especial (Editable)',
+      offerSubtitle: 'Configurable desde tu panel o tocando aquí',
       offerButtonText: 'Reservar Promo',
       offerBannerImage: './assets/hair-balayage.jpg',
       offerLinkedServiceId: 'srv-hair-color',
 
       // Screen 3: Our Services Header
       servicesHeaderTitle: 'Nuestros Servicios',
-      servicesHeaderSubtitle: 'Encontrá el servicio perfecto de Uñas o Pelo para vos',
+      servicesHeaderSubtitle: 'Elegí la categoría o el trabajo que querés realizarte hoy',
 
       // Screen 4: Add Inspo Dark Screen
       inspoHeaderTitle: 'Add inspo',
-      inspoHeaderSubtitle: 'Tu satisfacción es nuestro compromiso',
+      inspoHeaderSubtitle: 'Elegí fotos de referencia o subí la tuya para tu turno',
+      inspoUploadButtonLabel: 'Subir Foto Propia',
+      inspoBookNowButtonLabel: 'Book now',
+      inspoExploreTabLabel: 'Explorar Todo',
+      inspoConfirmFooterLabel: 'Usar diseños elegidos en mi Turno →',
 
       // Screen 5: Beauty Studio Booking Sheet
       bookingHeroImage: './assets/studio-nails.jpg',
       studioInteriorImage: './assets/studio-lounge.jpg',
+      bookingStatusUnconfirmed: 'Pendiente de confirmar',
+      bookingStylistPrefix: 'Profesional:',
+      bookingAddedInspoLabel: 'Added inspo',
+      bookingSelectedDateLabel: 'Fecha y Hora',
+      bookingConfirmButtonPrefix: 'Confirmar Turno • Seña',
       depositLegalNote:
-        'Al confirmar la reserva, se solicita una seña del 50% del total para asegurar tu turno.',
+        'Al confirmar la reserva, se solicita una seña para asegurar tu lugar en la agenda.',
 
       // Color Theme
-      themeId: isVelvet ? 'lavender-noir' : 'dusty-rose-luxury',
-      colors: isVelvet
-        ? { ...THEME_PRESETS[1] }
-        : { ...THEME_PRESETS[0] }
+      themeId: isSecondDemo ? 'lavender-noir' : 'dusty-rose-luxury',
+      colors: isSecondDemo ? { ...THEME_PRESETS[1] } : { ...THEME_PRESETS[0] }
     },
 
-    // 2. OPERATIONS, SCHEDULE, DEPOSIT & WHATSAPP
+    // 2. OPERATIONS, CONTACT INFO, SCHEDULE, WORK OPTIONS, DEPOSIT & WHATSAPP (100% Editable)
     operations: {
       currencySymbol: '$',
       depositPercentage: 50,
-      paymentAlias: isVelvet ? 'VELVET.NAILS.MP' : 'DANIELA.STUDIO.MP',
-      paymentCvu: '0000003100084921847291',
+      paymentAlias: 'TU.ALIAS.MP',
+      paymentCvu: '0000000000000000000000',
       paymentHolder: ownerName,
-      paymentBankName: 'Mercado Pago / Transferencia',
-      whatsappNumber: customMeta.whatsappNumber || '5491123456789',
-      address: isVelvet ? 'Av. Santa Fe 3240, Palermo' : 'Av. Principal 450, Estudio Central',
+      paymentBankName: 'Mercado Pago / Transferencia Bancaria',
+      whatsappNumber: customMeta.whatsappNumber || '5491100000000',
+      phoneDisplay: '+54 9 11 0000-0000 (Editable)',
+      address: customMeta.address || 'Dirección de tu Local 123 (Editable)',
+      businessHoursText: 'Lun a Sáb de 09:00 a 20:00 hs (Editable)',
       openDays: ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'],
+      availableDates: [
+        'Hoy',
+        'Mañana',
+        'Jueves',
+        'Viernes',
+        'Sábado',
+        'Lunes',
+        'Martes',
+        'Miércoles'
+      ],
       timeSlots: [
         '09:00',
         '10:00',
@@ -183,16 +213,48 @@ export function createTenantSeedDatabase(slug = 'daniela-gimenez', customMeta = 
         '18:00',
         '19:00'
       ],
-      aiGreeting: `¡Hola! Soy la Asesora IA de ${businessName}. Contame si hoy querés hacerte las uñas, cortarte o teñirte el pelo, o combinar ambos y te armo el turno ideal en segundos.`
+      workOptions: [
+        'Almendra',
+        'Coffin',
+        'Squoval',
+        'Natural / Corto',
+        'Con Retiro Previo (+20 min)',
+        'Pelo Corto / Medio',
+        'Pelo Largo'
+      ],
+      aiGreeting:
+        '¡Hola! Soy la Asesora IA del salón. Contame qué servicio o estilo te gustaría hacerte hoy y te armo la recomendación ideal con precios y horarios disponibles.'
     },
 
-    // 3. SPECIALISTS / STAFF (100% Editable)
+    // 3. DYNAMIC CATEGORIES (Unlimited: Owner can add, edit, or delete any category)
+    categories: [
+      {
+        id: 'unas',
+        name: 'Estética de Uñas',
+        shortLabel: 'Uñas',
+        icon: '💅'
+      },
+      {
+        id: 'pelo',
+        name: 'Peluquería Femenina',
+        shortLabel: 'Peluquería',
+        icon: '✂️'
+      },
+      {
+        id: 'combos',
+        name: 'Combos Integrales',
+        shortLabel: 'Combos',
+        icon: '✨'
+      }
+    ],
+
+    // 4. COLLABORATORS / SPECIALISTS (Unlimited: Owner can add, edit, or remove any collaborator)
     specialists: [
       {
         id: 'spec-1',
-        name: ownerName,
-        role: 'Directora • Nail Artist & Estilista',
-        studioCode: isVelvet ? 'VN Studio' : 'DG Studio',
+        name: 'Colaboradora 1 (Nombre Editable)',
+        role: 'Especialista Principal (Editable)',
+        studioCode: 'Box / Sillón 1',
         avatar: './assets/stylist-main.jpg',
         rating: '5.0',
         specialties: ['unas', 'pelo', 'combos'],
@@ -200,9 +262,9 @@ export function createTenantSeedDatabase(slug = 'daniela-gimenez', customMeta = 
       },
       {
         id: 'spec-2',
-        name: 'Sofía Martínez',
-        role: 'Especialista en Manicura 3D & Soft Gel',
-        studioCode: isVelvet ? 'VN Studio' : 'DG Studio',
+        name: 'Colaboradora 2 (Nombre Editable)',
+        role: 'Especialista en Uñas & Nail Art (Editable)',
+        studioCode: 'Box / Mesa 2',
         avatar: './assets/inspo-rose-french.jpg',
         rating: '4.9',
         specialties: ['unas', 'combos'],
@@ -210,9 +272,9 @@ export function createTenantSeedDatabase(slug = 'daniela-gimenez', customMeta = 
       },
       {
         id: 'spec-3',
-        name: 'Camila Torres',
-        role: 'Colorista & Corte Femenino',
-        studioCode: isVelvet ? 'VN Studio' : 'DG Studio',
+        name: 'Colaboradora 3 (Nombre Editable)',
+        role: 'Estilista & Colorista (Editable)',
+        studioCode: 'Sillón 3',
         avatar: './assets/hair-cut.jpg',
         rating: '4.9',
         specialties: ['pelo', 'combos'],
@@ -220,7 +282,7 @@ export function createTenantSeedDatabase(slug = 'daniela-gimenez', customMeta = 
       }
     ],
 
-    // 4. SERVICES CATALOG (Nails + Women's Hair + Combos — 100% Editable)
+    // 5. SERVICES / WORK CATALOG (Unlimited: Owner can add, edit, or delete any service)
     services: [
       {
         id: 'srv-manicure-3d',
@@ -241,7 +303,7 @@ export function createTenantSeedDatabase(slug = 'daniela-gimenez', customMeta = 
         category: 'unas',
         popularIcon: 'hand',
         isPopular: true,
-        shortDesc: 'Baño de gel protector sobre tu uña natural + color por 21 días',
+        shortDesc: 'Baño de gel protector sobre uña natural + color de larga duración',
         price: 19500,
         durationMin: 60,
         image: './assets/inspo-rose-french.jpg'
@@ -252,8 +314,8 @@ export function createTenantSeedDatabase(slug = 'daniela-gimenez', customMeta = 
         addonLabel: '+ largo a elección',
         category: 'unas',
         popularIcon: 'gem',
-        isPopular: false,
-        shortDesc: 'Alargamiento inmediato con tips de gel livianos y acabado natural',
+        isPopular: true,
+        shortDesc: 'Alargamiento con tips de gel livianos y acabado natural',
         price: 26000,
         durationMin: 90,
         image: './assets/inspo-black-gold.jpg'
@@ -276,7 +338,7 @@ export function createTenantSeedDatabase(slug = 'daniela-gimenez', customMeta = 
         addonLabel: '+ baño de luz',
         category: 'pelo',
         popularIcon: 'palette',
-        isPopular: false,
+        isPopular: true,
         shortDesc: 'Iluminación dimensional, mechas, rubios personalizados o color global',
         price: 42000,
         durationMin: 120,
@@ -284,7 +346,7 @@ export function createTenantSeedDatabase(slug = 'daniela-gimenez', customMeta = 
       },
       {
         id: 'srv-hair-spa',
-        name: 'Hair Spa & Nutrición Botox',
+        name: 'Hair Spa & Nutrición Capilar',
         addonLabel: '+ sellado brillo',
         category: 'pelo',
         popularIcon: 'flower',
@@ -300,7 +362,7 @@ export function createTenantSeedDatabase(slug = 'daniela-gimenez', customMeta = 
         addonLabel: '+ sesión integral',
         category: 'combos',
         popularIcon: 'crown',
-        isPopular: false,
+        isPopular: true,
         shortDesc: 'Manicura Semipermanente/Kapping + Corte o Brushing en una sola visita',
         price: 34000,
         durationMin: 90,
@@ -308,7 +370,7 @@ export function createTenantSeedDatabase(slug = 'daniela-gimenez', customMeta = 
       }
     ],
 
-    // 5. "ADD INSPO" GALLERY (100% Editable + Clients can upload their own photo)
+    // 6. "ADD INSPO" GALLERY (Unlimited: Owner & clients can add/replace/delete photos)
     inspoGallery: [
       {
         id: 'inspo-1',
@@ -348,7 +410,7 @@ export function createTenantSeedDatabase(slug = 'daniela-gimenez', customMeta = 
       },
       {
         id: 'inspo-5',
-        title: 'Layered Butterfly Cut & Blowout',
+        title: 'Layered Cut & Brushing',
         category: 'pelo',
         nailShape: 'Corte en Capas',
         likes: 132,
@@ -366,35 +428,35 @@ export function createTenantSeedDatabase(slug = 'daniela-gimenez', customMeta = 
       }
     ],
 
-    // 6. INITIAL SAMPLE APPOINTMENTS (Editable & manageable in Owner Agenda)
+    // 7. SAMPLE APPOINTMENTS AGENDA (Editable & manageable in Owner Agenda)
     appointments: [
       {
         id: 'apt-1001',
-        code: 'DG-841',
-        clientName: 'Mahi',
-        clientPhone: '5491155550101',
+        code: 'TS-841',
+        clientName: 'Clienta Ejemplo (Editable)',
+        clientPhone: '5491100000000',
         serviceId: 'srv-hair-cut',
         serviceName: 'Corte Femenino & Brushing',
         addonLabel: '+ lavado spa',
         specialistId: 'spec-1',
-        specialistName: ownerName,
-        studioCode: isVelvet ? 'VN Studio' : 'DG Studio',
-        dateLabel: 'Lun 18 Nov',
+        specialistName: 'Colaboradora 1 (Nombre Editable)',
+        studioCode: 'Sucursal Principal',
+        dateLabel: 'Mañana',
         timeSlot: '11:00',
         timeRange: '11:00-12:00',
         totalPrice: 18000,
         depositAmount: 9000,
-        status: 'confirmed', // 'unconfirmed' | 'confirmed' | 'completed' | 'cancelled'
-        nailShape: 'Natural',
-        inspoImages: ['/assets/hair-cut.jpg', '/assets/inspo-rose-french.jpg'],
-        notes: 'Quiere mantener el largo en capas suaves.',
+        status: 'confirmed',
+        nailShape: 'Natural / Corto',
+        inspoImages: ['./assets/hair-cut.jpg', './assets/inspo-rose-french.jpg'],
+        notes: 'Turno de ejemplo editable o eliminable desde la agenda.',
         createdAt: '2026-11-11T10:00:00.000Z'
       }
     ],
 
-    // 7. PER-TENANT CLOUD DATABASE CONNECTOR (Supabase / Webhook)
+    // 8. PER-TENANT CLOUD DATABASE CONNECTOR (Supabase / Webhook)
     databaseConfig: {
-      provider: 'local_disk_and_idb', // 'local_disk_and_idb' | 'supabase' | 'arapy_cloud'
+      provider: 'local_disk_and_idb',
       supabaseUrl: '',
       supabaseAnonKey: '',
       webhookUrl: ''

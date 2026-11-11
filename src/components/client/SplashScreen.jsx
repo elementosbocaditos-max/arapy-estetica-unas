@@ -1,12 +1,18 @@
 import React from 'react';
-import { ChevronRight, ChevronDown, Sparkles } from 'lucide-react';
+import { ChevronRight, ChevronDown, Sparkles, MapPin, Phone, Clock } from 'lucide-react';
 import { useSaaS } from '../../context/SaaSContext';
 import EditableMedia from '../common/EditableMedia';
 import EditableText from '../common/EditableText';
 
 export default function SplashScreen({ onNavigate }) {
-  const { tenantDb, updateBrandingField, setActiveScreen, setActiveModal } = useSaaS();
-  const { branding } = tenantDb;
+  const {
+    tenantDb,
+    updateBrandingField,
+    updateOperationsField,
+    setActiveScreen,
+    setActiveModal
+  } = useSaaS();
+  const { branding = {}, operations = {} } = tenantDb;
 
   const goNext = (target) => {
     if (onNavigate) onNavigate(target);
@@ -45,7 +51,12 @@ export default function SplashScreen({ onNavigate }) {
             {branding.logoUrl ? (
               <img src={branding.logoUrl} alt="logo" className="splash-mini-logo" />
             ) : (
-              <span className="splash-Initials">{branding.logoText || 'DG'}</span>
+              <span className="splash-Initials">
+                <EditableText
+                  value={branding.logoText || 'TS'}
+                  onSave={(val) => updateBrandingField('logoText', val)}
+                />
+              </span>
             )}
             <EditableText
               value={branding.businessName}
@@ -57,14 +68,17 @@ export default function SplashScreen({ onNavigate }) {
             type="button"
             className="splash-ai-pill-btn"
             onClick={() => setActiveModal('ai')}
-            title="Consultar a la Asesora IA de Uñas y Pelo"
+            title="Consultar a la Asesora IA"
           >
             <Sparkles size={13} />
-            <span>Asesora IA</span>
+            <EditableText
+              value={branding.aiButtonLabel || 'Asesora IA'}
+              onSave={(val) => updateBrandingField('aiButtonLabel', val)}
+            />
           </button>
         </div>
 
-        {/* Bottom Editorial Copy & Dusty Rose CTA */}
+        {/* Bottom Editorial Copy, Editable Business Info & Dusty Rose CTA */}
         <div className="splash-bottom-content">
           <h1 className="splash-headline">
             <EditableText
@@ -94,6 +108,31 @@ export default function SplashScreen({ onNavigate }) {
             className="splash-subtitle"
             multiline
           />
+
+          {/* Editable Business Location, Hours & Phone Strip */}
+          <div className="splash-info-strip">
+            <div className="splash-info-item">
+              <MapPin size={11} />
+              <EditableText
+                value={operations.address || 'Dirección (Editable)'}
+                onSave={(val) => updateOperationsField('address', val)}
+              />
+            </div>
+            <div className="splash-info-item">
+              <Clock size={11} />
+              <EditableText
+                value={operations.businessHoursText || 'Horarios (Editable)'}
+                onSave={(val) => updateOperationsField('businessHoursText', val)}
+              />
+            </div>
+            <div className="splash-info-item">
+              <Phone size={11} />
+              <EditableText
+                value={operations.phoneDisplay || operations.whatsappNumber || 'Teléfono (Editable)'}
+                onSave={(val) => updateOperationsField('phoneDisplay', val)}
+              />
+            </div>
+          </div>
 
           {/* Full-width Dusty Rose Pill Button with Circular Right Arrow */}
           <button
