@@ -50,7 +50,9 @@ const AppState = {
   serviceSearchQuery: '',
   activeCategoryFilter: 'all',
 
-  // Reserva en curso
+  // Reserva de Clienta en curso
+  bookingDate: '', // 'YYYY-MM-DD'
+  bookingSlot: '', // '14:00'
   bookingDraft: {
     serviceId: null,
     inspoId: null,
@@ -59,6 +61,12 @@ const AppState = {
     clientName: '',
     clientPhone: ''
   },
+
+  // Agenda del Salón
+  agendaSelectedDate: '', // 'YYYY-MM-DD'
+  isManualApptOpen: false,
+  isBlockModalOpen: false,
+  blockedSlots: [],
 
   // Estado temporal de edición de servicio en el Panel
   editingServiceId: null
@@ -133,6 +141,69 @@ function getPaletteName(theme) {
     default:
       return '🌸 Blush Rose';
   }
+}
+
+// ----------------------------------------------------------------------------
+// HELPERS DE FECHAS Y HORARIOS (PASO 3)
+// ----------------------------------------------------------------------------
+function getTodayDateStr() {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  const d = String(now.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+function formatDateDisplay(dateStr) {
+  if (!dateStr) return '';
+  const [y, m, d] = dateStr.split('-');
+  const dateObj = new Date(Number(y), Number(m) - 1, Number(d));
+  const weekdays = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+  const months = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+  return `${weekdays[dateObj.getDay()]} ${Number(d)} de ${months[dateObj.getMonth()]}`;
+}
+
+function getUpcomingDays(count = 10) {
+  const weekdays = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+  const months = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+  const days = [];
+  const today = new Date();
+
+  for (let i = 0; i < count; i++) {
+    const d = new Date(today);
+    d.setDate(today.getDate() + i);
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const dayNum = String(d.getDate()).padStart(2, '0');
+    const dateStr = `${y}-${m}-${dayNum}`;
+
+    days.push({
+      dateStr,
+      dayNum: d.getDate(),
+      weekday: i === 0 ? 'Hoy' : i === 1 ? 'Mañ' : weekdays[d.getDay()],
+      month: months[d.getMonth()],
+      isToday: i === 0
+    });
+  }
+  return days;
+}
+
+const SALON_SLOTS = [
+  '09:00', '10:00', '11:00', '12:00', '13:00', '14:00',
+  '15:00', '16:00', '17:00', '18:00', '19:00', '20:00'
+];
+
+function isSlotOccupied(dateStr, slot) {
+  if (!dateStr || !slot) return false;
+  const isApptTaken = (AppState.appointments || []).some(
+    (a) => a.date === dateStr && a.slot === slot && a.status !== 'cancelled'
+  );
+  if (isApptTaken) return true;
+
+  const isBlocked = (AppState.blockedSlots || []).some(
+    (b) => b.date === dateStr && (b.allDay || b.slot === slot)
+  );
+  return isBlocked;
 }
 
 // ----------------------------------------------------------------------------
@@ -529,44 +600,58 @@ window.selectInspoAndBook = (inspoId, title) => {
 };
 
 // ----------------------------------------------------------------------------
-// PANTALLA 5: MI TURNO (PROCESO DE RESERVA NATIVO)
+// PANTALLA 5: MI TURNO (PROCESO DE RESERVA NATIVO - PASO 3)
 // ----------------------------------------------------------------------------
 function renderBooking() {
   const selectedService = AppState.services.find((s) => s.id === AppState.bookingDraft.serviceId);
+  const depositPercent = AppState.salon.depositPercent || 50;
   const depositAmount = selectedService
-    ? selectedService.deposit || Math.round((selectedService.price * (AppState.salon.depositPercent || 50)) / 100)
-    : 10000;
+    ? selectedService.deposit || Math.round((selectedService.price * depositPercent) / 100)
+    : 0;
+
+  const upcomingDays = getUpcomingDays(10);
+  if (!AppState.bookingDate) {
+    AppState.bookingDate = upcomingDays[0].dateStr;
+  }
 
   return `
     <div class="screen-viewport">
       <header class="app-header">
         <div class="app-header-left">
           <button type="button" class="header-back-btn" onclick="navigateTo('services')">${Icons.chevronLeft}</button>
-          <h2 class="app-header-title">Mi Turno</h2>
+          <div>
+            <h2 class="app-header-title">Mi Turno</h2>
+            <p style="font-size: 11px; color: var(--text-muted);">Completá tu reserva en simples pasos</p>
+          </div>
         </div>
       </header>
 
       <div class="booking-flow-container">
         <!-- Paso 1: Servicio Seleccionado -->
         <div class="step-box">
-          <div class="step-title">1. Trabajo Seleccionado</div>
+          <div class="step-title">1. Trabajo a Realizar</div>
           ${
             selectedService
               ? `
             <div class="selected-service-summary">
-              <div>
-                <strong>${selectedService.name}</strong>
-                <p style="font-size: 11.5px; color: var(--text-muted); margin-top: 2px;">
-                  Duración aprox: ${selectedService.duration || 60} min
-                </p>
+              <div style="display: flex; align-items: center; gap: 10px;">
+                <img src="${selectedService.image || './assets/studio-nails.jpg'}" alt="${selectedService.name}" style="width: 44px; height: 44px; border-radius: 10px; object-fit: cover;" onerror="this.src='./assets/studio-nails.jpg'" />
+                <div>
+                  <strong>${selectedService.name}</strong>
+                  <p style="font-size: 11.5px; color: var(--text-muted); margin-top: 1px;">
+                    ⏱️ ${selectedService.duration || 60} min • $${Number(selectedService.price).toLocaleString('es-AR')}
+                  </p>
+                </div>
               </div>
-              <span style="font-size: 15px; font-weight: 800; color: var(--text-main);">$${Number(selectedService.price).toLocaleString('es-AR')}</span>
+              <button type="button" class="btn-secondary-action" style="padding: 6px 10px; font-size: 11px;" onclick="navigateTo('services')">
+                Cambiar
+              </button>
             </div>
           `
               : `
-            <div style="text-align: center; padding: 14px 0;">
-              <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 8px;">Aún no elegiste qué trabajo querés realizarte.</p>
-              <button type="button" class="btn-book-service" onclick="navigateTo('services')">Elegir un Servicio</button>
+            <div style="text-align: center; padding: 16px 0;">
+              <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 10px;">No tenés un trabajo seleccionado todavía.</p>
+              <button type="button" class="btn-book-service" onclick="navigateTo('services')">Ver Catálogo y Elegir Trabajo</button>
             </div>
           `
           }
@@ -574,37 +659,73 @@ function renderBooking() {
 
         <!-- Paso 2: Día y Horario -->
         <div class="step-box">
-          <div class="step-title">2. Elegí Fecha y Hora Libre</div>
-          <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 8px;">Horarios en tiempo real sincronizados con la agenda:</p>
-          <div class="dates-row">
-            <div class="date-pill active">Hoy</div>
-            <div class="date-pill">Mañana</div>
-            <div class="date-pill">Jueves</div>
-            <div class="date-pill">Viernes</div>
-            <div class="date-pill">Sábado</div>
+          <div class="step-title">2. Elegí Fecha y Horario Disponible</div>
+          <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 8px;">Días disponibles en tiempo real con la agenda del salón:</p>
+          
+          <!-- Selector horizontal de días reales -->
+          <div class="dates-scroll-container">
+            ${upcomingDays
+              .map(
+                (d) => `
+              <div class="calendar-day-card ${AppState.bookingDate === d.dateStr ? 'active' : ''}" onclick="window.selectBookingDate('${d.dateStr}')">
+                <span class="cal-weekday">${d.weekday}</span>
+                <span class="cal-day-num">${d.dayNum}</span>
+                <span class="cal-month">${d.month}</span>
+              </div>
+            `
+              )
+              .join('')}
           </div>
-          <div class="slots-row" style="margin-top: 10px;">
-            <div class="slot-pill active">10:00</div>
-            <div class="slot-pill">12:00</div>
-            <div class="slot-pill">15:00</div>
-            <div class="slot-pill occupied">17:00 (Ocupado)</div>
+
+          <div style="margin-top: 12px;">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
+              <span style="font-size: 12px; font-weight: 700; color: var(--text-main);">Horarios para ${formatDateDisplay(AppState.bookingDate)}:</span>
+              <span style="font-size: 11px; color: var(--accent-primary); font-weight: 700;">${AppState.bookingSlot ? `${AppState.bookingSlot} hs seleccionado` : 'Tocá un horario'}</span>
+            </div>
+
+            <!-- Grilla interactiva de horarios libres / ocupados -->
+            <div class="slots-interactive-grid">
+              ${SALON_SLOTS.map((slot) => {
+                const occupied = isSlotOccupied(AppState.bookingDate, slot);
+                const isSelected = AppState.bookingSlot === slot;
+
+                if (occupied) {
+                  return `
+                    <button type="button" class="slot-btn occupied" disabled title="Horario ya reservado">
+                      <span>${slot}</span>
+                      <span style="font-size: 9px; font-weight: 800;">Ocupado</span>
+                    </button>
+                  `;
+                }
+
+                return `
+                  <button type="button" class="slot-btn ${isSelected ? 'active' : ''}" onclick="window.selectBookingSlot('${slot}')">
+                    <span>${slot}</span>
+                    <span style="font-size: 9.5px; opacity: 0.85;">Disponible</span>
+                  </button>
+                `;
+              }).join('')}
+            </div>
           </div>
         </div>
 
         <!-- Paso 3: Datos de la Clienta -->
         <div class="step-box">
           <div class="step-title">3. Tus Datos de Contacto</div>
+          <p style="font-size: 11.5px; color: var(--text-muted); margin-bottom: 10px;">Completá tus datos para que la dueña te guarde en su agenda:</p>
           <div class="form-group-clean">
             <label>Tu Nombre y Apellido</label>
-            <input type="text" placeholder="Ej: Sofía Martínez" id="client-name-input" value="${AppState.bookingDraft.clientName || ''}" />
+            <input type="text" placeholder="Ej: Valentina Gómez" id="client-name-input" value="${AppState.bookingDraft.clientName || ''}" oninput="AppState.bookingDraft.clientName=this.value" />
+          </div>
+          <div class="form-group-clean">
             <label>Tu Teléfono / WhatsApp</label>
-            <input type="tel" placeholder="Ej: 11 2345 6789" id="client-phone-input" value="${AppState.bookingDraft.clientPhone || ''}" />
+            <input type="tel" placeholder="Ej: 11 2345 6789" id="client-phone-input" value="${AppState.bookingDraft.clientPhone || ''}" oninput="AppState.bookingDraft.clientPhone=this.value" />
           </div>
         </div>
 
         <!-- Paso 4: Seña y WhatsApp -->
         <div class="step-box">
-          <div class="step-title">4. Seña del ${AppState.salon.depositPercent || 50}% y Confirmación</div>
+          <div class="step-title">4. Seña del ${depositPercent}% y Confirmación</div>
           <div class="deposit-info-box">
             <span style="font-size: 10px; font-weight: 800; color: var(--accent-dark); letter-spacing: 0.08em; text-transform: uppercase;">
               Monto de Seña para congelar tu turno
@@ -677,6 +798,9 @@ function renderPanel() {
   }
 
   // Rutas de subpantallas internas del panel
+  if (AppState.panelSubView === 'agenda') {
+    return renderPanelAgenda();
+  }
   if (AppState.panelSubView === 'salon') {
     return renderPanelSalon();
   }
@@ -689,6 +813,10 @@ function renderPanel() {
 
   // Menú Principal del Panel (6 Tarjetas Grandes + Barra de Color en Vivo)
   const currentTheme = AppState.salon.themeColor || 'rose';
+  const todayStr = getTodayDateStr();
+  const todayCount = (AppState.appointments || []).filter(
+    (a) => a.date === todayStr && a.status !== 'cancelled'
+  ).length;
 
   return `
     <div class="screen-viewport">
@@ -733,7 +861,7 @@ function renderPanel() {
           <div class="big-card-icon" style="background: #e0f2fe; color: #0284c7;">${Icons.calendar}</div>
           <div>
             <h3>Agenda de Turnos</h3>
-            <p>0 turnos hoy • Estados y WhatsApp</p>
+            <p>${todayCount} ${todayCount === 1 ? 'turno hoy' : 'turnos hoy'} • Horarios y WhatsApp</p>
           </div>
         </div>
 
@@ -742,7 +870,7 @@ function renderPanel() {
           <div class="big-card-icon" style="background: #fdf2f8; color: #db2777;">${Icons.users}</div>
           <div>
             <h3>Clientas</h3>
-            <p>0 fichas • Historial y gustos</p>
+            <p>${(AppState.clients || []).length} fichas • Historial y gustos</p>
           </div>
         </div>
 
@@ -785,6 +913,545 @@ function renderPanel() {
     </div>
   `;
 }
+
+// ----------------------------------------------------------------------------
+// SUBPANTALLA: 1. AGENDA DE TURNOS EN VIVO (PASO 3)
+// ----------------------------------------------------------------------------
+function renderPanelAgenda() {
+  if (!AppState.agendaSelectedDate) {
+    AppState.agendaSelectedDate = getTodayDateStr();
+  }
+
+  const selectedDate = AppState.agendaSelectedDate;
+  const dayAppointments = (AppState.appointments || [])
+    .filter((a) => a.date === selectedDate)
+    .sort((a, b) => (a.slot || '').localeCompare(b.slot || ''));
+
+  const todayCount = (AppState.appointments || []).filter(
+    (a) => a.date === getTodayDateStr() && a.status !== 'cancelled'
+  ).length;
+  const confirmedCount = dayAppointments.filter((a) => a.status === 'confirmed').length;
+  const pendingCount = dayAppointments.filter((a) => a.status === 'pending').length;
+  const completedCount = dayAppointments.filter((a) => a.status === 'completed').length;
+
+  const upcomingDays = getUpcomingDays(10);
+
+  return `
+    <div class="screen-viewport">
+      <header class="app-header">
+        <div class="app-header-left">
+          <button type="button" class="header-back-btn" onclick="window.openPanelSubView('menu')">${Icons.chevronLeft}</button>
+          <div>
+            <h2 class="app-header-title">Agenda de Turnos</h2>
+            <p style="font-size: 11px; color: var(--text-muted);">${formatDateDisplay(selectedDate)}</p>
+          </div>
+        </div>
+        <button type="button" class="btn-primary-action" style="padding: 7px 12px; font-size: 11px;" onclick="window.handleToggleManualApptModal(true)">
+          + Turno Manual
+        </button>
+      </header>
+
+      <div class="panel-subview">
+        <!-- Selector rápido de fechas -->
+        <div class="dates-scroll-container">
+          ${upcomingDays
+            .map(
+              (d) => `
+            <div class="calendar-day-card ${selectedDate === d.dateStr ? 'active' : ''}" onclick="window.selectAgendaDate('${d.dateStr}')">
+              <span class="cal-weekday">${d.weekday}</span>
+              <span class="cal-day-num">${d.dayNum}</span>
+              <span class="cal-month">${d.month}</span>
+            </div>
+          `
+            )
+            .join('')}
+        </div>
+
+        <!-- Barra de métricas del día -->
+        <div class="agenda-metrics-strip">
+          <div class="agenda-metrics-chip">
+            <span>Hoy:</span>
+            <strong>${todayCount}</strong>
+          </div>
+          <div class="agenda-metrics-chip">
+            <span style="color: #16a34a;">Confirmados:</span>
+            <strong style="color: #16a34a;">${confirmedCount}</strong>
+          </div>
+          <div class="agenda-metrics-chip">
+            <span style="color: #d97706;">Pendientes:</span>
+            <strong style="color: #d97706;">${pendingCount}</strong>
+          </div>
+          <div class="agenda-metrics-chip">
+            <span style="color: #7c3aed;">Cumplidos:</span>
+            <strong style="color: #7c3aed;">${completedCount}</strong>
+          </div>
+        </div>
+
+        <!-- Selector de fecha nativo y botón bloquear -->
+        <div style="display: flex; gap: 8px; align-items: center;">
+          <input
+            type="date"
+            value="${selectedDate}"
+            style="flex: 1; padding: 8px 12px; border: 1px solid rgba(0,0,0,0.1); border-radius: 10px; font-size: 12.5px; background: var(--card-bg); color: var(--text-main);"
+            onchange="window.selectAgendaDate(this.value)"
+          />
+          <button type="button" class="btn-secondary-action" style="padding: 8px 12px; font-size: 11.5px; white-space: nowrap;" onclick="window.handleToggleBlockModal(true)">
+            🚫 Bloquear Horario / Día
+          </button>
+        </div>
+
+        <!-- Formulario Modal: + Turno Manual -->
+        ${AppState.isManualApptOpen ? renderManualApptForm() : ''}
+
+        <!-- Formulario Modal: Bloquear Horario / Día -->
+        ${AppState.isBlockModalOpen ? renderBlockSlotForm() : ''}
+
+        <!-- Lista de Turnos del Día -->
+        <div style="display: flex; flex-direction: column; gap: 12px;">
+          ${
+            dayAppointments.length === 0
+              ? `
+            <div style="text-align: center; padding: 40px 20px; background: var(--card-bg); border-radius: 18px; border: 1px solid rgba(0,0,0,0.06);">
+              <div style="width: 48px; height: 48px; margin: 0 auto 12px; border-radius: 50%; background: #e0f2fe; display: flex; align-items: center; justify-content: center; color: #0284c7;">
+                ${Icons.calendar}
+              </div>
+              <h4 style="font-size: 15px; font-weight: 700; color: var(--text-main);">Sin turnos para este día</h4>
+              <p style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">
+                Cargá un turno que te llegó por teléfono con el botón <strong>"+ Turno Manual"</strong> o esperá reservas online.
+              </p>
+            </div>
+          `
+              : dayAppointments
+                  .map((appt) => {
+                    const statusClass = `status-${appt.status || 'pending'}`;
+                    const isPaid = appt.depositPaid === true;
+
+                    let statusLabel = 'Pendiente';
+                    let badgeClass = 'status-badge-pending';
+                    if (appt.status === 'confirmed') {
+                      statusLabel = 'Confirmado';
+                      badgeClass = 'status-badge-confirmed';
+                    } else if (appt.status === 'completed') {
+                      statusLabel = 'Cumplido';
+                      badgeClass = 'status-badge-completed';
+                    } else if (appt.status === 'cancelled') {
+                      statusLabel = 'Cancelado';
+                      badgeClass = 'status-badge-cancelled';
+                    }
+
+                    return `
+              <div class="agenda-appt-card ${statusClass}">
+                <div class="agenda-appt-top">
+                  <div>
+                    <span class="agenda-time-pill">${appt.slot} hs</span>
+                    <span style="font-size: 11px; color: var(--text-muted); margin-left: 6px;">⏱️ ${appt.serviceDuration || 60}m</span>
+                  </div>
+                  <span class="agenda-status-pill ${badgeClass}">${statusLabel}</span>
+                </div>
+
+                <div>
+                  <div class="agenda-client-name">
+                    <span>${appt.clientName}</span>
+                    ${
+                      appt.clientPhone
+                        ? `
+                      <button type="button" style="background: none; border: none; color: #25d366; cursor: pointer; padding: 0;" onclick="window.sendClientWhatsAppReminder('${appt.id}')" title="Escribir por WhatsApp">
+                        ${Icons.whatsapp}
+                      </button>
+                    `
+                        : ''
+                    }
+                  </div>
+                  <div class="agenda-service-detail">
+                    <span>${appt.serviceName}</span>
+                    <span>•</span>
+                    <strong style="color: var(--text-main);">$${Number(appt.servicePrice || 0).toLocaleString('es-AR')}</strong>
+                  </div>
+                </div>
+
+                <div class="agenda-deposit-row">
+                  <div>
+                    <span style="opacity: 0.8;">Seña:</span>
+                    <strong>$${Number(appt.depositAmount || 0).toLocaleString('es-AR')}</strong>
+                    <span style="color: ${isPaid ? '#16a34a' : '#d97706'}; font-weight: 800; margin-left: 4px;">
+                      (${isPaid ? 'Recibida ✅' : 'Pendiente ⏳'})
+                    </span>
+                  </div>
+                  <button type="button" class="btn-toggle-deposit" onclick="window.handleToggleApptDeposit('${appt.id}')">
+                    ${isPaid ? 'Marcar Pendiente' : 'Marcar Recibida'}
+                  </button>
+                </div>
+
+                <div class="agenda-actions-row">
+                  ${
+                    appt.status !== 'confirmed' && appt.status !== 'completed' && appt.status !== 'cancelled'
+                      ? `
+                    <button type="button" class="btn-agenda-action success" onclick="window.handleApptStatusChange('${appt.id}', 'confirmed')">
+                      ✅ Confirmar
+                    </button>
+                  `
+                      : ''
+                  }
+                  ${
+                    appt.status !== 'completed' && appt.status !== 'cancelled'
+                      ? `
+                    <button type="button" class="btn-agenda-action" onclick="window.handleApptStatusChange('${appt.id}', 'completed')">
+                      🏁 Cumplido
+                    </button>
+                  `
+                      : ''
+                  }
+                  <button type="button" class="btn-agenda-action wa" onclick="window.sendClientWhatsAppReminder('${appt.id}')">
+                    💬 WhatsApp
+                  </button>
+                  ${
+                    appt.status !== 'cancelled'
+                      ? `
+                    <button type="button" class="btn-agenda-action danger" onclick="window.handleCancelAppt('${appt.id}', '${appt.clientName}')">
+                      ✕ Cancelar
+                    </button>
+                  `
+                      : ''
+                  }
+                </div>
+              </div>
+            `;
+                  })
+                  .join('')
+          }
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderManualApptForm() {
+  const services = AppState.services || [];
+  const selectedDate = AppState.agendaSelectedDate;
+
+  return `
+    <form class="form-card" style="border: 1.5px solid var(--accent-primary);" onsubmit="window.handleSaveManualAppt(event)">
+      <div style="display: flex; align-items: center; justify-content: space-between;">
+        <h3>➕ Cargar Turno Manual</h3>
+        <button type="button" style="background: none; border: none; font-size: 18px; cursor: pointer;" onclick="window.handleToggleManualApptModal(false)">×</button>
+      </div>
+      <p class="form-card-sub">Para clientas que te reservaron por llamada o en el local:</p>
+
+      <div class="form-group-clean">
+        <label>Nombre de la Clienta</label>
+        <input type="text" id="manual-client-name" placeholder="Ej: Marcela Benítez" required />
+      </div>
+
+      <div class="form-group-clean">
+        <label>Teléfono / WhatsApp</label>
+        <input type="tel" id="manual-client-phone" placeholder="Ej: 11 9876 5432" required />
+      </div>
+
+      <div class="form-group-clean">
+        <label>Servicio</label>
+        <select id="manual-service-id" required>
+          ${
+            services.length === 0
+              ? '<option value="">(No hay servicios creados aún)</option>'
+              : services.map((s) => `<option value="${s.id}">${s.name} - $${Number(s.price).toLocaleString('es-AR')}</option>`).join('')
+          }
+        </select>
+      </div>
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+        <div class="form-group-clean">
+          <label>Fecha</label>
+          <input type="date" id="manual-appt-date" value="${selectedDate}" required />
+        </div>
+        <div class="form-group-clean">
+          <label>Horario</label>
+          <select id="manual-appt-slot" required>
+            ${SALON_SLOTS.map((s) => `<option value="${s}">${s} hs</option>`).join('')}
+          </select>
+        </div>
+      </div>
+
+      <div style="display: flex; align-items: center; gap: 8px; margin: 8px 0 14px;">
+        <input type="checkbox" id="manual-deposit-paid" style="width: 18px; height: 18px;" />
+        <label for="manual-deposit-paid" style="font-size: 13px; font-weight: 600; cursor: pointer;">Seña del turno ya recibida / pagada</label>
+      </div>
+
+      <div style="display: flex; gap: 8px;">
+        <button type="submit" class="btn-primary-action" style="flex: 1;">
+          Guardar Turno en Agenda
+        </button>
+        <button type="button" class="btn-secondary-action" onclick="window.handleToggleManualApptModal(false)">
+          Cancelar
+        </button>
+      </div>
+    </form>
+  `;
+}
+
+function renderBlockSlotForm() {
+  const selectedDate = AppState.agendaSelectedDate;
+  const blocks = AppState.blockedSlots || [];
+
+  return `
+    <form class="form-card" style="border: 1.5px solid #ef4444;" onsubmit="window.handleSaveBlockSlot(event)">
+      <div style="display: flex; align-items: center; justify-content: space-between;">
+        <h3 style="color: #dc2626;">🚫 Bloquear Día u Horario</h3>
+        <button type="button" style="background: none; border: none; font-size: 18px; cursor: pointer;" onclick="window.handleToggleBlockModal(false)">×</button>
+      </div>
+      <p class="form-card-sub">Para días de descanso, vacaciones, feriados o ausencias:</p>
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+        <div class="form-group-clean">
+          <label>Fecha a Bloquear</label>
+          <input type="date" id="block-date-input" value="${selectedDate}" required />
+        </div>
+        <div class="form-group-clean">
+          <label>Franja Horaria</label>
+          <select id="block-slot-input">
+            <option value="all">Día Completo (Cerrado)</option>
+            ${SALON_SLOTS.map((s) => `<option value="${s}">${s} hs</option>`).join('')}
+          </select>
+        </div>
+      </div>
+
+      <div style="display: flex; gap: 8px; margin-top: 6px;">
+        <button type="submit" class="btn-primary-action" style="flex: 1; background: #dc2626; color: #fff;">
+          Bloquear Horario
+        </button>
+        <button type="button" class="btn-secondary-action" onclick="window.handleToggleBlockModal(false)">
+          Cerrar
+        </button>
+      </div>
+
+      <!-- Lista de bloqueos activos -->
+      ${
+        blocks.length > 0
+          ? `
+        <div style="margin-top: 14px; border-top: 1px solid rgba(0,0,0,0.08); padding-top: 10px;">
+          <label style="font-size: 11px; font-weight: 800; text-transform: uppercase;">Bloqueos Activos:</label>
+          <div style="display: flex; flex-direction: column; gap: 6px; margin-top: 6px;">
+            ${blocks
+              .map(
+                (b) => `
+              <div style="display: flex; align-items: center; justify-content: space-between; background: #fee2e2; border-radius: 8px; padding: 6px 10px; font-size: 12px; color: #991b1b;">
+                <span>📅 ${b.date} • ${b.allDay ? 'Día Completo' : `${b.slot} hs`}</span>
+                <button type="button" style="background: none; border: none; color: #dc2626; font-weight: 800; cursor: pointer;" onclick="window.handleDeleteBlockSlot('${b.id}')">
+                  Eliminar Bloqueo
+                </button>
+              </div>
+            `
+              )
+              .join('')}
+          </div>
+        </div>
+      `
+          : ''
+      }
+    </form>
+  `;
+}
+
+// ----------------------------------------------------------------------------
+// CONTROLADORES DE AGENDA Y RESERVAS (PASO 3)
+// ----------------------------------------------------------------------------
+window.selectBookingDate = (dateStr) => {
+  AppState.bookingDate = dateStr;
+  AppState.bookingSlot = '';
+  renderApp();
+};
+
+window.selectBookingSlot = (slot) => {
+  AppState.bookingSlot = slot;
+  renderApp();
+};
+
+window.selectAgendaDate = (dateStr) => {
+  AppState.agendaSelectedDate = dateStr;
+  renderApp();
+};
+
+window.handleToggleManualApptModal = (isOpen) => {
+  AppState.isManualApptOpen = isOpen;
+  renderApp();
+};
+
+window.handleToggleBlockModal = (isOpen) => {
+  AppState.isBlockModalOpen = isOpen;
+  renderApp();
+};
+
+window.handleSaveManualAppt = async (e) => {
+  e.preventDefault();
+  const name = document.getElementById('manual-client-name')?.value.trim();
+  const phone = document.getElementById('manual-client-phone')?.value.trim();
+  const serviceId = document.getElementById('manual-service-id')?.value;
+  const date = document.getElementById('manual-appt-date')?.value;
+  const slot = document.getElementById('manual-appt-slot')?.value;
+  const depositPaid = document.getElementById('manual-deposit-paid')?.checked || false;
+
+  if (!name || !phone || !serviceId || !date || !slot) {
+    showToast('⚠️ Por favor completá todos los campos requeridos');
+    return;
+  }
+
+  // Verificar si el turno ya está ocupado
+  if (isSlotOccupied(date, slot)) {
+    showToast('⚠️ Ese horario ya está ocupado o bloqueado');
+    return;
+  }
+
+  const srv = (AppState.services || []).find((s) => s.id === serviceId);
+  const srvName = srv ? srv.name : 'Servicio Manual';
+  const srvPrice = srv ? Number(srv.price) || 0 : 0;
+  const srvDuration = srv ? Number(srv.duration) || 60 : 60;
+  const depositPercent = AppState.salon.depositPercent || 50;
+  const depositAmount = srv ? (srv.deposit || Math.round((srvPrice * depositPercent) / 100)) : 0;
+
+  const apptId = 'appt_' + Date.now();
+  const newAppt = {
+    id: apptId,
+    clientId: '',
+    clientName: name,
+    clientPhone: phone,
+    serviceId: serviceId,
+    serviceName: srvName,
+    servicePrice: srvPrice,
+    serviceDuration: srvDuration,
+    date: date,
+    slot: slot,
+    status: 'confirmed',
+    depositAmount: depositAmount,
+    depositPaid: depositPaid,
+    createdAt: new Date().toISOString()
+  };
+
+  // Crear o actualizar ficha de clienta
+  let client = (AppState.clients || []).find((c) => c.phone && c.phone === phone);
+  if (!client) {
+    client = {
+      id: 'cli_' + Date.now(),
+      name: name,
+      phone: phone,
+      notes: '',
+      history: [],
+      totalSpent: 0,
+      createdAt: new Date().toISOString()
+    };
+  }
+  client.history = client.history || [];
+  client.history.push({
+    apptId: apptId,
+    serviceName: srvName,
+    date: date,
+    slot: slot,
+    price: srvPrice
+  });
+  newAppt.clientId = client.id;
+
+  await DataStore.set('appointments', apptId, newAppt);
+  await DataStore.set('clients', client.id, client);
+
+  AppState.appointments.push(newAppt);
+  const clientIdx = (AppState.clients || []).findIndex((c) => c.id === client.id);
+  if (clientIdx >= 0) {
+    AppState.clients[clientIdx] = client;
+  } else {
+    AppState.clients.push(client);
+  }
+
+  AppState.isManualApptOpen = false;
+  showToast('✅ Turno manual agendado con éxito');
+  renderApp();
+};
+
+window.handleSaveBlockSlot = async (e) => {
+  e.preventDefault();
+  const date = document.getElementById('block-date-input')?.value;
+  const slotVal = document.getElementById('block-slot-input')?.value;
+
+  if (!date) {
+    showToast('⚠️ Seleccioná una fecha para bloquear');
+    return;
+  }
+
+  const blockId = 'blk_' + Date.now();
+  const newBlock = {
+    id: blockId,
+    date: date,
+    slot: slotVal === 'all' ? '' : slotVal,
+    allDay: slotVal === 'all',
+    createdAt: new Date().toISOString()
+  };
+
+  await DataStore.set('blockedSlots', blockId, newBlock);
+  if (!AppState.blockedSlots) AppState.blockedSlots = [];
+  AppState.blockedSlots.push(newBlock);
+
+  showToast('🚫 Horario bloqueado correctamente');
+  renderApp();
+};
+
+window.handleDeleteBlockSlot = async (blockId) => {
+  await DataStore.delete('blockedSlots', blockId);
+  AppState.blockedSlots = (AppState.blockedSlots || []).filter((b) => b.id !== blockId);
+  showToast('✅ Bloqueo eliminado');
+  renderApp();
+};
+
+window.handleApptStatusChange = async (apptId, newStatus) => {
+  const appt = (AppState.appointments || []).find((a) => a.id === apptId);
+  if (!appt) return;
+
+  appt.status = newStatus;
+  await DataStore.set('appointments', apptId, appt);
+
+  const label = newStatus === 'confirmed' ? 'Confirmado' : newStatus === 'completed' ? 'Cumplido' : newStatus;
+  showToast(`✅ Turno marcado como ${label}`);
+  renderApp();
+};
+
+window.handleToggleApptDeposit = async (apptId) => {
+  const appt = (AppState.appointments || []).find((a) => a.id === apptId);
+  if (!appt) return;
+
+  appt.depositPaid = !appt.depositPaid;
+  await DataStore.set('appointments', apptId, appt);
+
+  showToast(appt.depositPaid ? '✅ Seña marcada como Recibida' : '⏳ Seña marcada como Pendiente');
+  renderApp();
+};
+
+window.handleCancelAppt = async (apptId, clientName) => {
+  if (!window.confirm(`¿Estás segura de cancelar el turno de ${clientName}?`)) return;
+
+  const appt = (AppState.appointments || []).find((a) => a.id === apptId);
+  if (!appt) return;
+
+  appt.status = 'cancelled';
+  await DataStore.set('appointments', apptId, appt);
+
+  showToast('✕ Turno cancelado');
+  renderApp();
+};
+
+window.sendClientWhatsAppReminder = (apptId) => {
+  const appt = (AppState.appointments || []).find((a) => a.id === apptId);
+  if (!appt || !appt.clientPhone) {
+    showToast('⚠️ Este turno no tiene teléfono registrado');
+    return;
+  }
+
+  const cleanPhone = appt.clientPhone.replace(/\D/g, '');
+  const text = `¡Hola ${appt.clientName}! Te escribimos de ${AppState.salon.name || 'tu Salón'} para recordarte tu turno:\n\n` +
+    `✨ *Servicio:* ${appt.serviceName}\n` +
+    `📅 *Fecha:* ${formatDateDisplay(appt.date)}\n` +
+    `⏰ *Horario:* ${appt.slot} hs\n` +
+    `📍 *Dirección:* ${AppState.salon.address || ''}\n\n` +
+    `¡Por favor confirmános tu asistencia respondiendo a este mensaje!`;
+
+  const url = cleanPhone ? `https://wa.me/${cleanPhone}?text=${encodeURIComponent(text)}` : `https://wa.me/?text=${encodeURIComponent(text)}`;
+  window.open(url, '_blank');
+};
 
 // ----------------------------------------------------------------------------
 // SUBPANTALLA: 5. DATOS DEL SALÓN
@@ -1466,17 +2133,117 @@ window.copyAlias = () => {
   showToast('📋 ¡Alias copiado al portapapeles!');
 };
 
-window.confirmBookingWhatsapp = () => {
-  const name = document.getElementById('client-name-input')?.value.trim() || 'Clienta';
-  const phone = document.getElementById('client-phone-input')?.value.trim() || '';
-  const salonPhone = AppState.salon.phone || '';
+window.confirmBookingWhatsapp = async () => {
   const currentService = AppState.services.find((s) => s.id === AppState.bookingDraft.serviceId);
-  const srvName = currentService ? currentService.name : 'Servicio';
+  if (!currentService) {
+    showToast('⚠️ Por favor seleccioná un servicio del catálogo');
+    navigateTo('services');
+    return;
+  }
 
-  const text = `¡Hola! Quiero confirmar mi turno en ${AppState.salon.name}:\n• Servicio: ${srvName}\n• Nombre: ${name}\n• Teléfono: ${phone}\n• Seña transferida al Alias: ${AppState.salon.alias}`;
-  const url = `https://wa.me/${salonPhone}?text=${encodeURIComponent(text)}`;
+  if (!AppState.bookingDate || !AppState.bookingSlot) {
+    showToast('⚠️ Por favor elegí una fecha y un horario disponible');
+    return;
+  }
+
+  const nameInput = document.getElementById('client-name-input')?.value.trim();
+  const phoneInput = document.getElementById('client-phone-input')?.value.trim();
+  const name = nameInput || AppState.bookingDraft.clientName;
+  const phone = phoneInput || AppState.bookingDraft.clientPhone;
+
+  if (!name || !phone) {
+    showToast('⚠️ Por favor ingresá tu nombre y teléfono de contacto');
+    return;
+  }
+
+  // Anti-solapamiento: verificar si el horario ya está ocupado
+  if (isSlotOccupied(AppState.bookingDate, AppState.bookingSlot)) {
+    showToast('⚠️ Ese horario acaba de ser ocupado. Por favor elegí otro.');
+    renderApp();
+    return;
+  }
+
+  const depositPercent = AppState.salon.depositPercent || 50;
+  const depositAmount = currentService.deposit || Math.round((currentService.price * depositPercent) / 100);
+
+  const apptId = 'appt_' + Date.now();
+  const newAppt = {
+    id: apptId,
+    clientId: '',
+    clientName: name,
+    clientPhone: phone,
+    serviceId: currentService.id,
+    serviceName: currentService.name,
+    servicePrice: Number(currentService.price) || 0,
+    serviceDuration: Number(currentService.duration) || 60,
+    date: AppState.bookingDate,
+    slot: AppState.bookingSlot,
+    status: 'pending',
+    depositAmount: depositAmount,
+    depositPaid: false,
+    createdAt: new Date().toISOString()
+  };
+
+  // Crear o actualizar automáticamente la ficha de la clienta
+  let client = (AppState.clients || []).find((c) => c.phone && c.phone === phone);
+  if (!client) {
+    client = {
+      id: 'cli_' + Date.now(),
+      name: name,
+      phone: phone,
+      notes: '',
+      history: [],
+      totalSpent: 0,
+      createdAt: new Date().toISOString()
+    };
+  }
+  client.history = client.history || [];
+  client.history.push({
+    apptId: apptId,
+    serviceName: currentService.name,
+    date: AppState.bookingDate,
+    slot: AppState.bookingSlot,
+    price: Number(currentService.price) || 0
+  });
+  newAppt.clientId = client.id;
+
+  // Persistir en Firebase / LocalStorage
+  await DataStore.set('appointments', apptId, newAppt);
+  await DataStore.set('clients', client.id, client);
+
+  AppState.appointments.push(newAppt);
+  const clientIdx = (AppState.clients || []).findIndex((c) => c.id === client.id);
+  if (clientIdx >= 0) {
+    AppState.clients[clientIdx] = client;
+  } else {
+    AppState.clients.push(client);
+  }
+
+  // Armar mensaje para WhatsApp
+  const dateFormatted = formatDateDisplay(AppState.bookingDate);
+  const text =
+    `¡Hola! Quiero confirmar mi turno en ${AppState.salon.name || 'el Salón'}:\n\n` +
+    `✨ *Servicio:* ${currentService.name}\n` +
+    `📅 *Fecha:* ${dateFormatted}\n` +
+    `⏰ *Horario:* ${AppState.bookingSlot} hs\n` +
+    `👤 *Clienta:* ${name}\n` +
+    `📱 *Teléfono:* ${phone}\n` +
+    `💵 *Total:* $${Number(currentService.price).toLocaleString('es-AR')}\n` +
+    `💳 *Seña requerida:* $${Number(depositAmount).toLocaleString('es-AR')}\n` +
+    `📌 *Alias de pago:* ${AppState.salon.alias || 'TU.ALIAS.MP'}\n\n` +
+    `Adjunto mi comprobante de transferencia para congelar el turno. ¡Gracias!`;
+
+  const salonPhone = (AppState.salon.phone || '').replace(/\D/g, '');
+  const url = salonPhone
+    ? `https://wa.me/${salonPhone}?text=${encodeURIComponent(text)}`
+    : `https://wa.me/?text=${encodeURIComponent(text)}`;
+
   window.open(url, '_blank');
-  showToast('✅ ¡Turno agendado y enviado por WhatsApp!');
+  showToast('🎉 ¡Turno agendado con éxito! Abriendo WhatsApp...');
+
+  // Reset del slot elegido para la siguiente reserva
+  AppState.bookingSlot = '';
+  renderApp();
 };
 
 // ----------------------------------------------------------------------------
@@ -1570,6 +2337,15 @@ async function startApp() {
   AppState.appointments = await DataStore.getAll('appointments');
   AppState.clients = await DataStore.getAll('clients');
   AppState.finances = await DataStore.getAll('finances');
+  AppState.blockedSlots = await DataStore.getAll('blockedSlots');
+
+  const upcomingDays = getUpcomingDays(10);
+  if (!AppState.bookingDate && upcomingDays.length > 0) {
+    AppState.bookingDate = upcomingDays[0].dateStr;
+  }
+  if (!AppState.agendaSelectedDate) {
+    AppState.agendaSelectedDate = getTodayDateStr();
+  }
 
   const savedInspo = await DataStore.getAll('inspo');
   if (savedInspo && savedInspo.length > 0) {
