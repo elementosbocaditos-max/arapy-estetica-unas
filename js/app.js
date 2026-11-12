@@ -69,7 +69,17 @@ const AppState = {
   blockedSlots: [],
 
   // Estado temporal de edición de servicio en el Panel
-  editingServiceId: null
+  editingServiceId: null,
+
+  // Búsqueda y gestión de clientas (Paso 4)
+  clientSearchQuery: '',
+  editingClientId: null,
+  isClientModalOpen: false,
+
+  // Finanzas y Caja (Paso 4)
+  financeFilter: 'month', // 'today' | 'week' | 'month' | 'all'
+  isNewTxModalOpen: false,
+  txModalType: 'income' // 'income' | 'expense'
 };
 
 // ----------------------------------------------------------------------------
@@ -801,11 +811,17 @@ function renderPanel() {
   if (AppState.panelSubView === 'agenda') {
     return renderPanelAgenda();
   }
-  if (AppState.panelSubView === 'salon') {
-    return renderPanelSalon();
+  if (AppState.panelSubView === 'clients') {
+    return renderPanelClients();
   }
   if (AppState.panelSubView === 'services') {
     return renderPanelServices();
+  }
+  if (AppState.panelSubView === 'finances') {
+    return renderPanelFinances();
+  }
+  if (AppState.panelSubView === 'salon') {
+    return renderPanelSalon();
   }
   if (AppState.panelSubView === 'photos') {
     return renderPanelPhotos();
@@ -2108,6 +2124,681 @@ window.handleSaveBannerContent = async (e) => {
   await DataStore.set('salon', 'config', AppState.salon);
   showToast('✅ Banner promocional guardado');
   renderApp();
+};
+
+// ============================================================================
+// SUBPANTALLA: 2. CLIENTAS (FICHAS, HISTORIAL Y NOTAS - PASO 4)
+// ============================================================================
+function renderPanelClients() {
+  const clients = AppState.clients || [];
+  const query = (AppState.clientSearchQuery || '').toLowerCase().trim();
+  const filteredClients = clients.filter(
+    (c) =>
+      (c.name || '').toLowerCase().includes(query) ||
+      (c.phone || '').includes(query) ||
+      (c.notes || '').toLowerCase().includes(query)
+  );
+
+  const editingClient = clients.find((c) => c.id === AppState.editingClientId);
+
+  return `
+    <div class="screen-viewport">
+      <header class="app-header">
+        <div class="app-header-left">
+          <button type="button" class="header-back-btn" onclick="window.openPanelSubView('menu')">${Icons.chevronLeft}</button>
+          <div>
+            <h2 class="app-header-title">Fichas de Clientas</h2>
+            <p style="font-size: 11px; color: var(--text-muted);">${clients.length} ${clients.length === 1 ? 'clienta registrada' : 'clientas registradas'}</p>
+          </div>
+        </div>
+        <button type="button" class="btn-primary-action" style="padding: 7px 12px; font-size: 11px;" onclick="window.handleOpenClientModal()">
+          + Nueva Clienta
+        </button>
+      </header>
+
+      <div class="panel-subview">
+        <!-- Buscador en tiempo real -->
+        <div class="client-search-box">
+          <span class="search-icon">${Icons.search}</span>
+          <input
+            type="text"
+            placeholder="Buscar por nombre o celular..."
+            value="${AppState.clientSearchQuery || ''}"
+            oninput="window.handleClientSearch(this.value)"
+          />
+        </div>
+
+        <!-- Formulario Modal: Crear / Editar Ficha -->
+        ${AppState.isClientModalOpen ? renderClientModalForm(editingClient) : ''}
+
+        <!-- Listado de Clientas -->
+        ${
+          filteredClients.length === 0
+            ? `
+          <div style="text-align: center; padding: 40px 20px; background: var(--card-bg); border-radius: 18px; border: 1px solid rgba(0,0,0,0.06);">
+            <div style="width: 48px; height: 48px; margin: 0 auto 12px; border-radius: 50%; background: #fdf2f8; display: flex; align-items: center; justify-content: center; color: #db2777;">
+              ${Icons.users}
+            </div>
+            <h4 style="font-size: 15px; font-weight: 700; color: var(--text-main);">
+              ${query ? 'No se encontraron clientas con esa búsqueda' : 'Sin clientas registradas aún'}
+            </h4>
+            <p style="font-size: 12px; color: var(--text-muted); margin-top: 4px; line-height: 1.4;">
+              ${query ? 'Probá buscando con otro nombre o celular.' : 'Las fichas se crean solas cuando una clienta reserva su turno online o podés agregar una con el botón "+ Nueva Clienta".'}
+            </p>
+          </div>
+        `
+            : `
+          <div style="display: flex; flex-direction: column; gap: 12px;">
+            ${filteredClients
+              .map((c) => {
+                const initials = (c.name || 'C').trim().substring(0, 2).toUpperCase();
+                const historyCount = (c.history || []).length;
+                const totalSpent = Number(c.totalSpent || 0);
+
+                return `
+              <div class="client-card">
+                <div class="client-card-top">
+                  <div class="client-avatar-row">
+                    <div class="client-avatar">${initials}</div>
+                    <div>
+                      <div class="client-name-title">${c.name}</div>
+                      <div class="client-phone-sub">📱 ${c.phone || 'Sin celular'}</div>
+                    </div>
+                  </div>
+                  ${
+                    c.phone
+                      ? `
+                    <button type="button" class="btn-agenda-action wa" style="padding: 6px 10px; font-size: 11px; flex: initial;" onclick="window.openClientWhatsApp('${c.phone}', '${c.name}')">
+                      💬 WhatsApp
+                    </button>
+                  `
+                      : ''
+                  }
+                </div>
+
+                <!-- Estadísticas de la Clienta -->
+                <div class="client-stats-row">
+                  <div class="client-stat-item">
+                    <span>Visitas / Turnos</span>
+                    <strong>${historyCount} ${historyCount === 1 ? 'servicio' : 'servicios'}</strong>
+                  </div>
+                  <div class="client-stat-item">
+                    <span>Gasto Acumulado</span>
+                    <strong style="color: var(--accent-primary);">$${totalSpent.toLocaleString('es-AR')}</strong>
+                  </div>
+                </div>
+
+                <!-- Notas y Preferencias Personales -->
+                ${
+                  c.notes
+                    ? `
+                  <div class="client-notes-card">
+                    <strong>📝 Notas:</strong> ${c.notes}
+                  </div>
+                `
+                    : `
+                  <div style="font-size: 11.5px; color: var(--text-muted); font-style: italic;">
+                    Sin notas especiales cargadas (alergias, colores o gustos).
+                  </div>
+                `
+                }
+
+                <!-- Historial Desplegable de Turnos -->
+                ${
+                  historyCount > 0
+                    ? `
+                  <details style="font-size: 12px; color: var(--text-muted);">
+                    <summary style="cursor: pointer; font-weight: 700; color: var(--text-main); margin-bottom: 6px;">
+                      Ver historial de turnos (${historyCount})
+                    </summary>
+                    <div style="display: flex; flex-direction: column; gap: 4px; padding-left: 8px;">
+                      ${c.history
+                        .map(
+                          (h) => `
+                        <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed rgba(0,0,0,0.06); padding: 3px 0;">
+                          <span>• ${h.serviceName} (${h.date || ''})</span>
+                          <strong style="color: var(--text-main);">$${Number(h.price || 0).toLocaleString('es-AR')}</strong>
+                        </div>
+                      `
+                        )
+                        .join('')}
+                    </div>
+                  </details>
+                `
+                    : ''
+                }
+
+                <!-- Botones de Acción -->
+                <div class="client-actions-strip">
+                  <button type="button" class="btn-agenda-action" onclick="window.handleEditClient('${c.id}')">
+                    ✏️ Editar / Notas
+                  </button>
+                  <button type="button" class="btn-agenda-action danger" onclick="window.handleDeleteClient('${c.id}', '${c.name}')">
+                    🗑️ Borrar Ficha
+                  </button>
+                </div>
+              </div>
+            `;
+              })
+              .join('')}
+          </div>
+        `
+        }
+      </div>
+    </div>
+  `;
+}
+
+function renderClientModalForm(editingClient) {
+  const isEdit = !!editingClient;
+
+  return `
+    <form class="form-card" style="border: 1.5px solid var(--accent-primary); margin-bottom: 14px;" onsubmit="window.handleSaveClient(event)">
+      <div style="display: flex; align-items: center; justify-content: space-between;">
+        <h3>${isEdit ? '✏️ Editar Ficha de Clienta' : '➕ Nueva Ficha de Clienta'}</h3>
+        <button type="button" style="background: none; border: none; font-size: 18px; cursor: pointer;" onclick="window.handleCloseClientModal()">×</button>
+      </div>
+      <p class="form-card-sub">Guardá el contacto y anotaciones clave para su próxima visita:</p>
+
+      <div class="form-group-clean">
+        <label>Nombre y Apellido</label>
+        <input type="text" id="client-modal-name" value="${editingClient?.name || ''}" placeholder="Ej: Camila Rodríguez" required />
+      </div>
+
+      <div class="form-group-clean">
+        <label>Teléfono de WhatsApp</label>
+        <input type="tel" id="client-modal-phone" value="${editingClient?.phone || ''}" placeholder="Ej: 11 2345 6789" required />
+      </div>
+
+      <div class="form-group-clean">
+        <label>Notas del Salón (Alergias, tonos favoritos, diseño preferido, etc.)</label>
+        <textarea id="client-modal-notes" rows="3" placeholder="Ej: Alérgica al monómero con olor. Prefiere tonos nude y largo almendrado. Balayage cobrizo suave.">${editingClient?.notes || ''}</textarea>
+      </div>
+
+      <div style="display: flex; gap: 8px; margin-top: 6px;">
+        <button type="submit" class="btn-primary-action" style="flex: 1;">
+          ${isEdit ? 'Actualizar Ficha' : 'Guardar Clienta'}
+        </button>
+        <button type="button" class="btn-secondary-action" onclick="window.handleCloseClientModal()">
+          Cancelar
+        </button>
+      </div>
+    </form>
+  `;
+}
+
+// ============================================================================
+// SUBPANTALLA: 4. FINANZAS Y CAJA (RESUMEN, SEÑAS, GASTOS Y CSV - PASO 4)
+// ============================================================================
+function renderPanelFinances() {
+  const finances = AppState.finances || [];
+  const appointments = AppState.appointments || [];
+  const filter = AppState.financeFilter || 'month';
+  const todayStr = getTodayDateStr();
+
+  // Cálculo de KPIs:
+  // 1. Ingresos por señas recibidas en turnos
+  const apptDeposits = appointments.filter((a) => a.depositPaid === true);
+  const totalDepositsIncome = apptDeposits.reduce((acc, a) => acc + (Number(a.depositAmount) || 0), 0);
+
+  // 2. Ingresos registrados en caja (directos)
+  const directIncomes = finances.filter((t) => t.type === 'income');
+  const directIncomeTotal = directIncomes.reduce((acc, t) => acc + (Number(t.amount) || 0), 0);
+
+  // 3. Gastos registrados
+  const expenses = finances.filter((t) => t.type === 'expense');
+  const totalExpenses = expenses.reduce((acc, t) => acc + (Number(t.amount) || 0), 0);
+
+  // Total ingresos consolidados
+  const totalAllIncome = totalDepositsIncome + directIncomeTotal;
+  const netBalance = totalAllIncome - totalExpenses;
+
+  // KPIs por período (Hoy, Semana, Mes):
+  const now = new Date();
+  const currentMonthPrefix = todayStr.substring(0, 7); // 'YYYY-MM'
+
+  const todayIncome =
+    finances.filter((t) => t.type === 'income' && t.date === todayStr).reduce((acc, t) => acc + Number(t.amount), 0) +
+    appointments.filter((a) => a.depositPaid && a.date === todayStr).reduce((acc, a) => acc + Number(a.depositAmount), 0);
+
+  const monthIncome =
+    finances.filter((t) => t.type === 'income' && (t.date || '').startsWith(currentMonthPrefix)).reduce((acc, t) => acc + Number(t.amount), 0) +
+    appointments.filter((a) => a.depositPaid && (a.date || '').startsWith(currentMonthPrefix)).reduce((acc, a) => acc + Number(a.depositAmount), 0);
+
+  // Cobros Pendientes (Turnos confirmados con seña o saldo pendiente)
+  const pendingDeposits = appointments.filter((a) => a.status !== 'cancelled' && a.depositPaid !== true);
+
+  // Filtrado de movimientos para la lista
+  const filteredTxs = finances.filter((t) => {
+    if (filter === 'today') return t.date === todayStr;
+    if (filter === 'month') return (t.date || '').startsWith(currentMonthPrefix);
+    return true;
+  }).sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+
+  return `
+    <div class="screen-viewport">
+      <header class="app-header">
+        <div class="app-header-left">
+          <button type="button" class="header-back-btn" onclick="window.openPanelSubView('menu')">${Icons.chevronLeft}</button>
+          <div>
+            <h2 class="app-header-title">Finanzas & Caja</h2>
+            <p style="font-size: 11px; color: var(--text-muted);">Control de ingresos, señas y egresos</p>
+          </div>
+        </div>
+        <button type="button" class="btn-primary-action" style="padding: 7px 11px; font-size: 11px; background: #0284c7;" onclick="window.exportFinancesCSV()">
+          📥 Exportar CSV
+        </button>
+      </header>
+
+      <div class="panel-subview">
+        <!-- 3 Tarjetas KPI Superiores -->
+        <div class="kpi-metrics-grid">
+          <div class="kpi-metric-card">
+            <span class="kpi-lbl">Ingresos Hoy</span>
+            <strong class="kpi-val" style="color: #16a34a;">$${todayIncome.toLocaleString('es-AR')}</strong>
+          </div>
+          <div class="kpi-metric-card">
+            <span class="kpi-lbl">Este Mes</span>
+            <strong class="kpi-val" style="color: #0284c7;">$${monthIncome.toLocaleString('es-AR')}</strong>
+          </div>
+          <div class="kpi-metric-card">
+            <span class="kpi-lbl">Balance Neto</span>
+            <strong class="kpi-val" style="color: ${netBalance >= 0 ? '#16a34a' : '#dc2626'};">$${netBalance.toLocaleString('es-AR')}</strong>
+          </div>
+        </div>
+
+        <!-- Botones de Acción Rápida: + Cobro / - Gasto -->
+        <div class="finance-action-buttons">
+          <button type="button" class="btn-record-income" onclick="window.handleOpenTxModal('income')">
+            <span>+</span>
+            <span>Registrar Cobro</span>
+          </button>
+          <button type="button" class="btn-record-expense" onclick="window.handleOpenTxModal('expense')">
+            <span>-</span>
+            <span>Registrar Gasto</span>
+          </button>
+        </div>
+
+        <!-- Formulario Modal: Registrar Movimiento -->
+        ${AppState.isNewTxModalOpen ? renderTxModalForm() : ''}
+
+        <!-- Desglose de Caja -->
+        <div class="finance-breakdown-card">
+          <div style="font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); margin-bottom: 8px;">
+            Desglose Consolidado
+          </div>
+          <div class="breakdown-row">
+            <span>Señas de Turnos Recibidas:</span>
+            <strong style="color: #16a34a;">+$${totalDepositsIncome.toLocaleString('es-AR')}</strong>
+          </div>
+          <div class="breakdown-row">
+            <span>Cobros Finales y Ventas:</span>
+            <strong style="color: #16a34a;">+$${directIncomeTotal.toLocaleString('es-AR')}</strong>
+          </div>
+          <div class="breakdown-row">
+            <span>Gastos Operativos (Insumos/Alquiler):</span>
+            <strong style="color: #dc2626;">-$${totalExpenses.toLocaleString('es-AR')}</strong>
+          </div>
+          <div class="breakdown-row">
+            <span>Balance de Caja Disponible:</span>
+            <strong style="color: ${netBalance >= 0 ? '#16a34a' : '#dc2626'};">$${netBalance.toLocaleString('es-AR')}</strong>
+          </div>
+        </div>
+
+        <!-- Cobros Pendientes de Turnos -->
+        ${
+          pendingDeposits.length > 0
+            ? `
+          <div class="form-card" style="border: 1px dashed #d97706; background: #fffbeb;">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
+              <h4 style="font-size: 13.5px; font-weight: 800; color: #b45309;">
+                ⏳ Señas Pendientes de Cobro (${pendingDeposits.length})
+              </h4>
+            </div>
+            <p style="font-size: 11.5px; color: #78350f; margin-bottom: 10px;">
+              Turnos agendados con seña aún sin marcar como recibida:
+            </p>
+            <div style="display: flex; flex-direction: column; gap: 6px;">
+              ${pendingDeposits
+                .slice(0, 5)
+                .map(
+                  (p) => `
+                <div style="display: flex; align-items: center; justify-content: space-between; background: #fff; border-radius: 10px; padding: 8px 12px; font-size: 12px; border: 1px solid #fde68a;">
+                  <div>
+                    <strong>${p.clientName}</strong>
+                    <div style="font-size: 11px; color: #78350f;">${p.serviceName} • 📅 ${p.date} (${p.slot} hs)</div>
+                  </div>
+                  <div style="text-align: right;">
+                    <div style="font-weight: 800; color: #b45309;">$${Number(p.depositAmount).toLocaleString('es-AR')}</div>
+                    <button type="button" style="background: #16a34a; color: #fff; border: none; font-size: 10px; font-weight: 800; padding: 3px 8px; border-radius: 6px; cursor: pointer; margin-top: 3px;" onclick="window.handleCollectPendingDeposit('${p.id}')">
+                      Recibida ✅
+                    </button>
+                  </div>
+                </div>
+              `
+                )
+                .join('')}
+            </div>
+          </div>
+        `
+            : ''
+        }
+
+        <!-- Filtro de Movimientos -->
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 6px;">
+          <h3 style="font-size: 14px; font-weight: 800; color: var(--text-main);">Movimientos Registrados</h3>
+          <div class="filter-pills-row">
+            <button type="button" class="filter-pill-btn ${filter === 'today' ? 'active' : ''}" onclick="window.setFinanceFilter('today')">Hoy</button>
+            <button type="button" class="filter-pill-btn ${filter === 'month' ? 'active' : ''}" onclick="window.setFinanceFilter('month')">Este Mes</button>
+            <button type="button" class="filter-pill-btn ${filter === 'all' ? 'active' : ''}" onclick="window.setFinanceFilter('all')">Todos</button>
+          </div>
+        </div>
+
+        <!-- Lista de Movimientos -->
+        ${
+          filteredTxs.length === 0
+            ? `
+          <div style="text-align: center; padding: 30px 16px; background: var(--card-bg); border-radius: 16px; border: 1px solid rgba(0,0,0,0.06);">
+            <p style="font-size: 12.5px; color: var(--text-muted);">Sin movimientos registrados para este período.</p>
+            <p style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">Usá los botones de arriba para registrar cobros o gastos diarios.</p>
+          </div>
+        `
+            : `
+          <div style="display: flex; flex-direction: column; gap: 8px;">
+            ${filteredTxs
+              .map((tx) => {
+                const isIncome = tx.type === 'income';
+                return `
+              <div class="tx-item-card">
+                <div>
+                  <div class="tx-concept-title">${isIncome ? '🟢' : '🔴'} ${tx.concept}</div>
+                  <div class="tx-meta-sub">
+                    📅 ${tx.date} • ${tx.method || 'Efectivo'} ${tx.category ? `• ${tx.category}` : ''}
+                  </div>
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <span class="tx-amount-badge ${isIncome ? 'income' : 'expense'}">
+                    ${isIncome ? '+' : '-'}$${Number(tx.amount).toLocaleString('es-AR')}
+                  </span>
+                  <button type="button" style="background: none; border: none; color: #dc2626; cursor: pointer; padding: 2px 4px; font-size: 14px;" onclick="window.handleDeleteTransaction('${tx.id}')" title="Borrar movimiento">
+                    ×
+                  </button>
+                </div>
+              </div>
+            `;
+              })
+              .join('')}
+          </div>
+        `
+        }
+      </div>
+    </div>
+  `;
+}
+
+function renderTxModalForm() {
+  const isIncome = AppState.txModalType === 'income';
+
+  return `
+    <form class="form-card" style="border: 1.5px solid ${isIncome ? '#16a34a' : '#dc2626'}; margin-bottom: 14px;" onsubmit="window.handleSaveTransaction(event)">
+      <div style="display: flex; align-items: center; justify-content: space-between;">
+        <h3 style="color: ${isIncome ? '#16a34a' : '#dc2626'};">
+          ${isIncome ? '🟢 Registrar Cobro / Ingreso' : '🔴 Registrar Gasto / Egreso'}
+        </h3>
+        <button type="button" style="background: none; border: none; font-size: 18px; cursor: pointer;" onclick="window.handleCloseTxModal()">×</button>
+      </div>
+      <p class="form-card-sub">
+        ${isIncome ? 'Ingresá el cobro de un servicio, seña o producto:' : 'Ingresá compras de insumos, esmaltes, alquiler o servicios:'}
+      </p>
+
+      <div class="form-group-clean">
+        <label>Concepto o Motivo</label>
+        <input type="text" id="tx-concept-input" placeholder="${isIncome ? 'Ej: Cobro final Balayage' : 'Ej: Esmaltes semipermanentes y limas'}" required />
+      </div>
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+        <div class="form-group-clean">
+          <label>Monto ($)</label>
+          <input type="number" id="tx-amount-input" placeholder="0" min="1" required />
+        </div>
+        <div class="form-group-clean">
+          <label>Método de Pago</label>
+          <select id="tx-method-input">
+            <option value="Efectivo">Efectivo 💵</option>
+            <option value="Transferencia / MP">Transferencia / MP 💳</option>
+            <option value="Tarjeta">Tarjeta Débito/Crédito</option>
+            <option value="Otro">Otro</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-group-clean">
+        <label>Fecha del Movimiento</label>
+        <input type="date" id="tx-date-input" value="${getTodayDateStr()}" required />
+      </div>
+
+      <div style="display: flex; gap: 8px; margin-top: 6px;">
+        <button type="submit" class="btn-primary-action" style="flex: 1; background: ${isIncome ? '#16a34a' : '#dc2626'}; color: #fff;">
+          ${isIncome ? 'Guardar Cobro' : 'Guardar Gasto'}
+        </button>
+        <button type="button" class="btn-secondary-action" onclick="window.handleCloseTxModal()">
+          Cancelar
+        </button>
+      </div>
+    </form>
+  `;
+}
+
+// ----------------------------------------------------------------------------
+// CONTROLADORES DE CLIENTAS (PASO 4)
+// ----------------------------------------------------------------------------
+window.handleClientSearch = (val) => {
+  AppState.clientSearchQuery = val;
+  renderApp();
+};
+
+window.handleOpenClientModal = () => {
+  AppState.editingClientId = null;
+  AppState.isClientModalOpen = true;
+  renderApp();
+};
+
+window.handleEditClient = (clientId) => {
+  AppState.editingClientId = clientId;
+  AppState.isClientModalOpen = true;
+  renderApp();
+};
+
+window.handleCloseClientModal = () => {
+  AppState.isClientModalOpen = false;
+  AppState.editingClientId = null;
+  renderApp();
+};
+
+window.handleSaveClient = async (e) => {
+  e.preventDefault();
+  const name = document.getElementById('client-modal-name')?.value.trim();
+  const phone = document.getElementById('client-modal-phone')?.value.trim();
+  const notes = document.getElementById('client-modal-notes')?.value.trim();
+
+  if (!name || !phone) {
+    showToast('⚠️ Ingresá el nombre y celular');
+    return;
+  }
+
+  const isEdit = !!AppState.editingClientId;
+  const clientId = isEdit ? AppState.editingClientId : 'cli_' + Date.now();
+
+  let client = isEdit
+    ? (AppState.clients || []).find((c) => c.id === clientId)
+    : { id: clientId, history: [], totalSpent: 0, createdAt: new Date().toISOString() };
+
+  if (!client) {
+    client = { id: clientId, history: [], totalSpent: 0, createdAt: new Date().toISOString() };
+  }
+
+  client.name = name;
+  client.phone = phone;
+  client.notes = notes;
+
+  await DataStore.set('clients', clientId, client);
+
+  if (isEdit) {
+    const idx = (AppState.clients || []).findIndex((c) => c.id === clientId);
+    if (idx >= 0) AppState.clients[idx] = client;
+    showToast('✅ Ficha de clienta actualizada');
+  } else {
+    if (!AppState.clients) AppState.clients = [];
+    AppState.clients.push(client);
+    showToast('🎉 Nueva clienta registrada');
+  }
+
+  AppState.isClientModalOpen = false;
+  AppState.editingClientId = null;
+  renderApp();
+};
+
+window.handleDeleteClient = async (clientId, name) => {
+  if (!window.confirm(`¿Estás segura de eliminar la ficha de ${name}? Se borrará su historial de notas.`)) return;
+
+  await DataStore.delete('clients', clientId);
+  AppState.clients = (AppState.clients || []).filter((c) => c.id !== clientId);
+  showToast('🗑️ Ficha eliminada');
+  renderApp();
+};
+
+window.openClientWhatsApp = (phone, name) => {
+  const cleanPhone = (phone || '').replace(/\D/g, '');
+  const salonName = AppState.salon.name || 'el Salón';
+  const text = `¡Hola ${name}! Te escribimos de ${salonName} 💕. ¿Cómo estás?`;
+  const url = cleanPhone ? `https://wa.me/${cleanPhone}?text=${encodeURIComponent(text)}` : `https://wa.me/?text=${encodeURIComponent(text)}`;
+  window.open(url, '_blank');
+};
+
+// ----------------------------------------------------------------------------
+// CONTROLADORES DE FINANZAS Y CAJA (PASO 4)
+// ----------------------------------------------------------------------------
+window.setFinanceFilter = (filter) => {
+  AppState.financeFilter = filter;
+  renderApp();
+};
+
+window.handleOpenTxModal = (type) => {
+  AppState.txModalType = type;
+  AppState.isNewTxModalOpen = true;
+  renderApp();
+};
+
+window.handleCloseTxModal = () => {
+  AppState.isNewTxModalOpen = false;
+  renderApp();
+};
+
+window.handleSaveTransaction = async (e) => {
+  e.preventDefault();
+  const concept = document.getElementById('tx-concept-input')?.value.trim();
+  const amount = Number(document.getElementById('tx-amount-input')?.value) || 0;
+  const method = document.getElementById('tx-method-input')?.value || 'Efectivo';
+  const date = document.getElementById('tx-date-input')?.value || getTodayDateStr();
+
+  if (!concept || amount <= 0) {
+    showToast('⚠️ Ingresá un concepto y un monto válido');
+    return;
+  }
+
+  const txId = 'tx_' + Date.now();
+  const newTx = {
+    id: txId,
+    type: AppState.txModalType,
+    concept: concept,
+    amount: amount,
+    method: method,
+    date: date,
+    createdAt: new Date().toISOString()
+  };
+
+  await DataStore.set('finances', txId, newTx);
+  if (!AppState.finances) AppState.finances = [];
+  AppState.finances.push(newTx);
+
+  showToast(AppState.txModalType === 'income' ? '🟢 Cobro registrado en caja' : '🔴 Gasto registrado en caja');
+  AppState.isNewTxModalOpen = false;
+  renderApp();
+};
+
+window.handleDeleteTransaction = async (txId) => {
+  if (!window.confirm('¿Deseas eliminar este movimiento de caja?')) return;
+
+  await DataStore.delete('finances', txId);
+  AppState.finances = (AppState.finances || []).filter((t) => t.id !== txId);
+  showToast('🗑️ Movimiento eliminado');
+  renderApp();
+};
+
+window.handleCollectPendingDeposit = async (apptId) => {
+  const appt = (AppState.appointments || []).find((a) => a.id === apptId);
+  if (!appt) return;
+
+  appt.depositPaid = true;
+  await DataStore.set('appointments', apptId, appt);
+
+  // Registrar automáticamente el cobro en finanzas
+  const txId = 'tx_' + Date.now();
+  const newTx = {
+    id: txId,
+    type: 'income',
+    concept: `Seña de turno: ${appt.clientName} (${appt.serviceName})`,
+    amount: Number(appt.depositAmount) || 0,
+    method: 'Transferencia / MP',
+    date: getTodayDateStr(),
+    createdAt: new Date().toISOString()
+  };
+
+  await DataStore.set('finances', txId, newTx);
+  if (!AppState.finances) AppState.finances = [];
+  AppState.finances.push(newTx);
+
+  showToast('✅ Seña cobrada y registrada en caja');
+  renderApp();
+};
+
+window.exportFinancesCSV = () => {
+  const finances = AppState.finances || [];
+  const appointments = AppState.appointments || [];
+
+  if (finances.length === 0 && appointments.length === 0) {
+    showToast('ℹ️ No hay movimientos para exportar');
+    return;
+  }
+
+  // Encabezados CSV
+  let csv = 'Fecha,Tipo,Concepto,Metodo,Monto\n';
+
+  // 1. Agregar movimientos de caja
+  finances.forEach((t) => {
+    const typeLabel = t.type === 'income' ? 'Ingreso' : 'Egreso/Gasto';
+    const cleanConcept = (t.concept || '').replace(/"/g, '""');
+    csv += `"${t.date || ''}","${typeLabel}","${cleanConcept}","${t.method || ''}","${t.amount || 0}"\n`;
+  });
+
+  // 2. Agregar señas de turnos cobradas
+  appointments
+    .filter((a) => a.depositPaid)
+    .forEach((a) => {
+      csv += `"${a.date || ''}","Ingreso Seña","${(a.clientName || '').replace(/"/g, '""')} - ${(a.serviceName || '').replace(/"/g, '""')}","Transferencia / MP","${a.depositAmount || 0}"\n`;
+    });
+
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `balance_caja_${getTodayDateStr()}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+
+  showToast('📥 Balance mensual exportado a CSV con éxito');
 };
 
 // ----------------------------------------------------------------------------
