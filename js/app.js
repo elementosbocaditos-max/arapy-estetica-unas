@@ -1,5 +1,6 @@
 // ============================================================================
-// BEAUTY & NAIL STUDIO — CORE APPLICATION ENGINE (PASO 1)
+// BEAUTY & NAIL STUDIO — CORE APPLICATION ENGINE (PASO 2)
+// Gestión Completa: Datos del Salón + Categorías y Servicios + Fotos & Textos
 // ============================================================================
 import { initFirebase, DataStore } from './firebase-config.js';
 
@@ -12,17 +13,24 @@ const AppState = {
   pinError: '',
   toastMessage: null,
 
-  // Datos del Salón
+  // Datos del Salón (Editables 100% por la dueña)
   salon: {
     name: 'Nombre de tu Salón',
-    address: 'Dirección de tu salón',
+    tagline: 'Tu espacio de belleza y cuidado personal',
+    address: 'Av. Principal 1234, Local 5',
     phone: '',
-    alias: '',
+    alias: 'TU.ALIAS.MP',
+    aliasHolder: 'Titular del Salón',
     depositPercent: 50,
     pin: '', // Vacío por defecto: la dueña lo crea la primera vez
-    splashTitle: 'Tu espacio de belleza',
-    splashSubtitle: 'Uñas & Peluquería profesional',
-    splashHero: './assets/splash-hero.jpg'
+    splashTitle: 'Look Good,',
+    splashSubtitle: 'Feel Beautiful',
+    splashHero: './assets/splash-hero.jpg',
+    themeColor: 'rose', // 'rose' | 'nude' | 'champagne' | 'sage' | 'noir'
+    bannerBadge: 'Promoción de la Semana',
+    bannerTitle: '20% OFF en Balayage & Uñas',
+    bannerSubtitle: 'Válido agendando tu turno online este mes',
+    bannerImage: './assets/service-hair-balayage.jpg'
   },
 
   // Colecciones (Inician limpias y vacías)
@@ -31,7 +39,16 @@ const AppState = {
   appointments: [],
   clients: [],
   finances: [],
-  inspo: [],
+  inspo: [
+    { id: 'inspo_1', title: 'Francesitas Rose Gold', category: 'Uñas Esculpidas', image: './assets/inspo-rose-french.jpg' },
+    { id: 'inspo_2', title: 'Black & Gold Glam', category: 'Nail Art', image: './assets/inspo-black-gold.jpg' },
+    { id: 'inspo_3', title: 'Balayage Caramelo & Brushing', category: 'Peluquería', image: './assets/service-hair-balayage.jpg' },
+    { id: 'inspo_4', title: 'Corte Femenino & Styling', category: 'Peluquería', image: './assets/service-hair-cut.jpg' }
+  ],
+
+  // Filtros de búsqueda
+  serviceSearchQuery: '',
+  activeCategoryFilter: 'all',
 
   // Reserva en curso
   bookingDraft: {
@@ -41,7 +58,10 @@ const AppState = {
     slot: null,
     clientName: '',
     clientPhone: ''
-  }
+  },
+
+  // Estado temporal de edición de servicio en el Panel
+  editingServiceId: null
 };
 
 // ----------------------------------------------------------------------------
@@ -58,7 +78,11 @@ const Icons = {
   dollar: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="12" x2="12" y1="2" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>`,
   store: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="m2 7 4.41-4.41A2 2 0 0 1 7.83 2h8.34a2 2 0 0 1 1.42.59L22 7"/><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><path d="M15 22v-4a2 2 0 0 0-2-2h-2a2 2 0 0 0-2 2v4"/><path d="M2 7h20"/></svg>`,
   camera: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>`,
-  whatsapp: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>`
+  whatsapp: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>`,
+  search: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>`,
+  trash: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>`,
+  edit: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>`,
+  check: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="20 6 9 17 4 12"/></svg>`
 };
 
 // ----------------------------------------------------------------------------
@@ -72,7 +96,43 @@ function showToast(message) {
       AppState.toastMessage = null;
       renderApp();
     }
-  }, 3000);
+  }, 3200);
+}
+
+// ----------------------------------------------------------------------------
+// GESTIÓN DE PALETA DE COLOR
+// ----------------------------------------------------------------------------
+function applyTheme(theme) {
+  AppState.salon.themeColor = theme;
+  document.body.className =
+    theme === 'rose'
+      ? 'theme-rose'
+      : theme === 'nude'
+        ? 'theme-nude'
+        : theme === 'champagne'
+          ? 'theme-champagne'
+          : theme === 'sage'
+            ? 'theme-sage'
+            : theme === 'noir'
+              ? 'theme-noir'
+              : 'theme-rose';
+}
+
+function getPaletteName(theme) {
+  switch (theme) {
+    case 'rose':
+      return '🌸 Blush Rose (Referencia)';
+    case 'nude':
+      return '🤎 Nude Bronze';
+    case 'champagne':
+      return '🥂 Champagne Gold';
+    case 'sage':
+      return '🌿 Olive Sage';
+    case 'noir':
+      return '🖤 Noir Minimal';
+    default:
+      return '🌸 Blush Rose';
+  }
 }
 
 // ----------------------------------------------------------------------------
@@ -85,6 +145,7 @@ function navigateTo(screenId) {
     AppState.pinError = '';
   }
   renderApp();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 window.navigateTo = navigateTo;
@@ -98,9 +159,7 @@ function handlePinKey(digit) {
     AppState.pinError = '';
   }
 
-  // Si ya ingresó los 4 dígitos
   if (AppState.pinDraft.length === 4) {
-    // Si la dueña aún no creó su PIN, este primer PIN ingresado se guarda como su PIN
     if (!AppState.salon.pin) {
       AppState.salon.pin = AppState.pinDraft;
       DataStore.set('salon', 'config', AppState.salon);
@@ -111,7 +170,6 @@ function handlePinKey(digit) {
       return;
     }
 
-    // Si ya existe un PIN, validarlo
     if (AppState.pinDraft === AppState.salon.pin) {
       AppState.isOwnerUnlocked = true;
       AppState.pinDraft = '';
@@ -139,14 +197,12 @@ window.handlePinKey = handlePinKey;
 window.handlePinDelete = handlePinDelete;
 
 // ----------------------------------------------------------------------------
-// RENDERIZADO DE PANTALLAS
+// PANTALLA 1: PORTADA (SPLASH - ESTILO FOTO DE REFERENCIA)
 // ----------------------------------------------------------------------------
-
-// 1. Portada
 function renderSplash() {
   return `
     <div class="screen-viewport no-bottom-bar splash-container">
-      <img src="${AppState.salon.splashHero || './assets/splash-hero.jpg'}" alt="Salón" class="splash-bg-media" onerror="this.style.display='none'" />
+      <img src="${AppState.salon.splashHero || './assets/splash-hero.jpg'}" alt="Salón" class="splash-bg-media" onerror="this.src='./assets/splash-hero.jpg'" />
       <div class="splash-overlay"></div>
 
       <div class="splash-top">
@@ -155,10 +211,10 @@ function renderSplash() {
 
       <div class="splash-bottom">
         <h1 class="splash-title">
-          ${AppState.salon.splashTitle || 'Tu espacio de belleza'}<br />
-          <span class="rose">${AppState.salon.splashSubtitle || 'Uñas & Peluquería'}</span>
+          ${AppState.salon.splashTitle || 'Look Good,'}<br />
+          <span class="accent">${AppState.salon.splashSubtitle || 'Feel Beautiful'}</span>
         </h1>
-        <p class="splash-subtitle">Elegí tu trabajo, agendá tu horario y asegurá tu turno online en simples pasos.</p>
+        <p class="splash-subtitle">${AppState.salon.tagline || 'Elegí tu trabajo, agendá tu horario y asegurá tu turno online en simples pasos.'}</p>
 
         <button type="button" class="splash-btn-primary" onclick="navigateTo('services')">
           <span>Reservar Turno</span>
@@ -173,51 +229,117 @@ function renderSplash() {
   `;
 }
 
-// 2. Inicio
+// ----------------------------------------------------------------------------
+// PANTALLA 2: INICIO (HOME CON FOTOS INTEGRADAS ESTILO PASTED.PNG)
+// ----------------------------------------------------------------------------
 function renderHome() {
   const hasAppt = AppState.bookingDraft.serviceId !== null;
+  const currentService = AppState.services.find((s) => s.id === AppState.bookingDraft.serviceId);
+  const activeServices = AppState.services.filter((s) => s.active !== false);
+  const popularServices = activeServices.slice(0, 4);
+
   return `
     <div class="screen-viewport">
       <header class="app-header">
         <div class="app-header-left">
-          <h2 class="app-header-title">${AppState.salon.name || 'Beauty Studio'}</h2>
+          <div>
+            <span style="font-size: 11px; font-weight: 700; color: var(--accent-primary); text-transform: uppercase; letter-spacing: 0.06em;">Bienvenida</span>
+            <h2 class="app-header-title">${AppState.salon.name || 'Beauty Studio'}</h2>
+          </div>
         </div>
+        <button type="button" class="header-back-btn" onclick="navigateTo('panel')" title="Panel del Dueño">
+          ${Icons.lock}
+        </button>
       </header>
 
       <div class="home-content">
-        <div class="salon-welcome-box">
-          <h2>Hola, Bienvenida ✨</h2>
-          <p>${AppState.salon.address || 'Tu centro de estética y cuidado personal'}</p>
+        <!-- Buscador Rápido -->
+        <div class="home-search-bar" onclick="navigateTo('services')">
+          <span style="color: var(--text-muted); display: flex;">${Icons.search}</span>
+          <span class="search-placeholder">Buscar servicios o tratamientos...</span>
+          <div class="search-btn-icon">${Icons.scissors}</div>
         </div>
 
-        <!-- Tarjeta de Próximo Turno -->
+        <!-- Banner Promocional con Foto y Letras Integradas (Estilo pasted.png) -->
+        <div class="promo-banner-card" onclick="navigateTo('services')">
+          <div class="promo-banner-text">
+            <span class="promo-badge">${AppState.salon.bannerBadge || 'Promoción'}</span>
+            <h3 class="promo-title">${AppState.salon.bannerTitle || '20% OFF en Servicios'}</h3>
+            <p class="promo-subtitle">${AppState.salon.bannerSubtitle || 'Válido agendando tu turno online'}</p>
+            <button type="button" class="promo-btn">
+              <span>Agendar Ahora</span>
+              <span>→</span>
+            </button>
+          </div>
+          <div class="promo-banner-media">
+            <img src="${AppState.salon.bannerImage || './assets/service-hair-balayage.jpg'}" alt="Promoción" class="promo-img" onerror="this.src='./assets/studio-nails.jpg'" />
+          </div>
+        </div>
+
+        <!-- Próximo Turno o Estado de Reserva -->
         <div class="next-appointment-card">
-          <span class="card-badge ${hasAppt ? 'confirmed' : ''}">
-            ${hasAppt ? 'Turno Confirmado' : 'Sin Turnos Pendientes'}
-          </span>
-          <h3 style="font-size: 15px; font-weight: 700; margin-top: 4px;">
-            ${hasAppt ? 'Tenés una cita agendada' : 'Aún no tenés turnos agendados'}
+          <div style="display: flex; align-items: center; justify-content: space-between;">
+            <span class="card-badge ${hasAppt ? 'confirmed' : ''}">
+              ${hasAppt ? 'Turno en Proceso' : 'Tu Espacio de Belleza'}
+            </span>
+            <span style="font-size: 11px; color: var(--text-muted); font-weight: 600;">
+              ${AppState.salon.address ? AppState.salon.address : 'Atención con Cita'}
+            </span>
+          </div>
+          <h3 style="font-size: 15px; font-weight: 700; margin-top: 6px;">
+            ${hasAppt && currentService ? currentService.name : '¿Lista para renovar tus uñas o peinado?'}
           </h3>
-          <p style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">
-            ${hasAppt ? 'Te esperamos puntual para brindarte la mejor atención.' : 'Elegí tu diseño favorito y reservá en 1 minuto.'}
+          <p style="font-size: 12px; color: var(--text-muted); margin-top: 3px;">
+            ${hasAppt ? 'Tu servicio está preseleccionado. Elegí fecha y hora para confirmarlo.' : 'Elegí el diseño que más te guste de nuestro catálogo.'}
           </p>
-          <button type="button" class="btn-book-service" style="margin-top: 12px; width: 100%;" onclick="navigateTo('services')">
-            ${hasAppt ? 'Ver Servicios o Reprogramar' : 'Agendar Nuevo Turno'}
+          <button type="button" class="btn-book-service" style="margin-top: 12px; width: 100%;" onclick="navigateTo(hasAppt ? 'booking' : 'services')">
+            ${hasAppt ? 'Continuar Mi Turno →' : 'Ver Catálogo y Agendar'}
           </button>
         </div>
+
+        <!-- Servicios Populares (Horizontal Scroll estilo pasted.png) -->
+        ${
+          popularServices.length > 0
+            ? `
+          <div class="section-header-row">
+            <h3>Servicios Populares</h3>
+            <span class="see-all-link" onclick="navigateTo('services')">Ver todos (${activeServices.length})</span>
+          </div>
+          <div class="popular-services-row">
+            ${popularServices
+              .map((s) => {
+                const cat = AppState.categories.find((c) => c.id === s.categoryId);
+                return `
+                <div class="popular-service-pill-card" onclick="window.selectServiceAndBook('${s.id}')">
+                  <img src="${s.image || './assets/studio-nails.jpg'}" alt="${s.name}" class="popular-srv-img" onerror="this.src='./assets/studio-nails.jpg'" />
+                  <div class="popular-srv-info">
+                    <h4>${s.name}</h4>
+                    <span class="cat-label">${cat ? cat.name : 'Servicio'} • ${s.duration || 60}m</span>
+                    <div class="popular-srv-foot">
+                      <span class="price-tag">$${Number(s.price || 0).toLocaleString('es-AR')}</span>
+                      <button type="button" class="btn-pill-book">Reservar</button>
+                    </div>
+                  </div>
+                </div>
+              `;
+              })
+              .join('')}
+          </div>
+        `
+            : ''
+        }
 
         <!-- Accesos directos -->
         <div class="quick-actions-grid">
           <div class="quick-action-tile" onclick="navigateTo('services')">
             <div class="tile-icon">${Icons.scissors}</div>
-            <strong>Servicios y Precios</strong>
-            <span>Catálogo completo del salón</span>
+            <strong>Todos los Trabajos</strong>
+            <span>${AppState.services.length} servicios en catálogo</span>
           </div>
-
           <div class="quick-action-tile" onclick="navigateTo('inspo')">
             <div class="tile-icon">${Icons.sparkles}</div>
-            <strong>Galería de Diseños</strong>
-            <span>Inspirate con trabajos reales</span>
+            <strong>Inspiración & Fotos</strong>
+            <span>${AppState.inspo.length} fotos reales</span>
           </div>
         </div>
       </div>
@@ -225,53 +347,103 @@ function renderHome() {
   `;
 }
 
-// 3. Servicios
+// ----------------------------------------------------------------------------
+// PANTALLA 3: SERVICIOS & PRECIOS (CATÁLOGO CLIENTA CON FOTOS INTEGRADAS)
+// ----------------------------------------------------------------------------
 function renderServices() {
   const categories = AppState.categories || [];
-  const services = AppState.services || [];
+  const allServices = AppState.services || [];
+  const activeCat = AppState.activeCategoryFilter;
+  const searchQ = (AppState.serviceSearchQuery || '').toLowerCase();
+
+  // Filtrar solo los servicios activos para la clienta
+  const filteredServices = allServices.filter((s) => {
+    if (s.active === false) return false;
+    if (activeCat !== 'all' && s.categoryId !== activeCat) return false;
+    if (searchQ && !s.name.toLowerCase().includes(searchQ)) return false;
+    return true;
+  });
 
   return `
     <div class="screen-viewport">
       <header class="app-header">
         <div class="app-header-left">
           <button type="button" class="header-back-btn" onclick="navigateTo('home')">${Icons.chevronLeft}</button>
-          <h2 class="app-header-title">Servicios</h2>
+          <div>
+            <h2 class="app-header-title">Nuestros Servicios</h2>
+            <p style="font-size: 11px; color: var(--text-muted);">Elegí el tratamiento perfecto para vos</p>
+          </div>
         </div>
       </header>
 
-      <!-- Categorías -->
-      <div class="categories-filter-strip">
-        <button class="cat-filter-chip active">Todos</button>
-        ${categories.map((c) => `<button class="cat-filter-chip">${c.name}</button>`).join('')}
+      <!-- Buscador en tiempo real -->
+      <div style="padding: 0 18px 10px;">
+        <div class="home-search-bar" style="cursor: text;">
+          <span style="color: var(--text-muted); display: flex;">${Icons.search}</span>
+          <input
+            type="text"
+            placeholder="Buscar por nombre..."
+            value="${AppState.serviceSearchQuery || ''}"
+            style="border: none; background: transparent; font-family: inherit; font-size: 13px; width: 100%; outline: none; color: var(--text-main);"
+            oninput="window.handleSearchServices(this.value)"
+          />
+          ${
+            AppState.serviceSearchQuery
+              ? `<button type="button" onclick="window.handleSearchServices('')" style="background: none; border: none; font-size: 16px; color: var(--text-muted); cursor: pointer;">×</button>`
+              : ''
+          }
+        </div>
       </div>
 
-      <!-- Lista de Servicios -->
+      <!-- Pestañas de Categorías -->
+      <div class="categories-filter-strip">
+        <button class="cat-filter-chip ${activeCat === 'all' ? 'active' : ''}" onclick="window.filterCategory('all')">
+          Todos (${allServices.filter((s) => s.active !== false).length})
+        </button>
+        ${categories
+          .map(
+            (c) => `
+          <button class="cat-filter-chip ${activeCat === c.id ? 'active' : ''}" onclick="window.filterCategory('${c.id}')">
+            ${c.name}
+          </button>
+        `
+          )
+          .join('')}
+      </div>
+
+      <!-- Lista de Servicios con Fotos Integradas -->
       <div class="services-list">
         ${
-          services.length === 0
+          filteredServices.length === 0
             ? `
-          <div style="text-align: center; padding: 40px 20px; color: var(--text-muted);">
-            <p style="font-size: 14px; font-weight: 600;">Aún no hay servicios cargados en el salón.</p>
-            <p style="font-size: 12px; margin-top: 6px;">La dueña puede agregarlos desde la pestaña <strong>Panel</strong>.</p>
-          </div>
-        `
-            : services
-                .map(
-                  (s) => `
-          <div class="service-card">
-            <div class="service-info">
-              <h3>${s.name}</h3>
-              <div class="service-meta">
-                <span>⏱️ ${s.duration || 60} min</span>
-                <span class="service-price">$${Number(s.price || 0).toLocaleString('es-AR')}</span>
-              </div>
+          <div style="text-align: center; padding: 50px 20px; color: var(--text-muted);">
+            <div style="width: 52px; height: 52px; margin: 0 auto 14px; border-radius: 50%; background: var(--accent-soft); display: flex; align-items: center; justify-content: center; color: var(--accent-primary);">
+              ${Icons.scissors}
             </div>
-            <button type="button" class="btn-book-service" onclick="window.selectServiceAndBook('${s.id}')">
-              Reservar
-            </button>
+            <p style="font-size: 15px; font-weight: 700; color: var(--text-main);">Aún no hay servicios disponibles.</p>
+            <p style="font-size: 12.5px; margin-top: 6px;">Podés agregar categorías y trabajos desde la pestaña <strong>Panel</strong>.</p>
           </div>
         `
-                )
+            : filteredServices
+                .map((s) => {
+                  const cat = categories.find((c) => c.id === s.categoryId);
+                  return `
+            <div class="service-card">
+              <img src="${s.image || './assets/studio-nails.jpg'}" alt="${s.name}" class="service-card-photo" onerror="this.src='./assets/studio-nails.jpg'" />
+              <div class="service-card-body">
+                <h3>${s.name}</h3>
+                <div class="service-meta">
+                  <span class="duration-badge">⏱️ ${s.duration || 60}m</span>
+                  <span style="font-size: 11px; color: var(--text-muted);">${cat ? cat.name : 'Servicio'}</span>
+                  <span class="service-price">$${Number(s.price || 0).toLocaleString('es-AR')}</span>
+                </div>
+              </div>
+              <button type="button" class="btn-book-service" onclick="window.selectServiceAndBook('${s.id}')">
+                Reservar
+              </button>
+            </div>
+          `;
+                })
                 .join('')
         }
       </div>
@@ -279,7 +451,26 @@ function renderServices() {
   `;
 }
 
-// 4. Inspo
+window.handleSearchServices = (val) => {
+  AppState.serviceSearchQuery = val;
+  renderApp();
+};
+
+window.filterCategory = (catId) => {
+  AppState.activeCategoryFilter = catId;
+  renderApp();
+};
+
+window.selectServiceAndBook = (serviceId) => {
+  AppState.bookingDraft.serviceId = serviceId;
+  const srv = AppState.services.find((s) => s.id === serviceId);
+  showToast(`💅 Trabajo seleccionado: ${srv ? srv.name : ''}`);
+  navigateTo('booking');
+};
+
+// ----------------------------------------------------------------------------
+// PANTALLA 4: INSPO (MURO DE DISEÑOS CON LETRAS INTEGRADAS)
+// ----------------------------------------------------------------------------
 function renderInspo() {
   const inspoList = AppState.inspo || [];
 
@@ -288,34 +479,32 @@ function renderInspo() {
       <header class="app-header">
         <div class="app-header-left">
           <button type="button" class="header-back-btn" onclick="navigateTo('home')">${Icons.chevronLeft}</button>
-          <h2 class="app-header-title">Muro de Diseños</h2>
+          <h2 class="app-header-title">Galería & Diseños</h2>
         </div>
       </header>
+
+      <div style="padding: 0 18px 12px;">
+        <p style="font-size: 12.5px; color: var(--text-muted);">
+          Tocá cualquier diseño para seleccionarlo al agendar tu turno:
+        </p>
+      </div>
 
       <div class="inspo-grid">
         ${
           inspoList.length === 0
-            ? `
-          <div style="grid-column: span 2; text-align: center; padding: 50px 20px; color: var(--text-muted);">
-            <p style="font-size: 14px; font-weight: 600;">Galería de inspiración vacía.</p>
-            <p style="font-size: 12px; margin-top: 6px;">La dueña puede subir fotos de sus trabajos desde la pestaña <strong>Panel</strong>.</p>
-          </div>
-        `
+            ? '<p style="grid-column: 1 / -1; text-align: center; color: var(--text-muted); padding: 40px;">Aún no hay fotos en el muro.</p>'
             : inspoList
                 .map(
                   (item) => `
-          <div class="inspo-item-card">
-            <div class="inspo-thumb-wrap">
-              <img src="${item.url}" alt="${item.title || 'Diseño'}" />
+            <div class="inspo-card" onclick="window.selectInspoAndBook('${item.id}', '${item.title}')">
+              <img src="${item.image}" alt="${item.title}" class="inspo-card-img" onerror="this.src='./assets/studio-nails.jpg'" />
+              <div class="inspo-card-gradient">
+                <span class="inspo-card-title">${item.title}</span>
+                <span class="inspo-card-cat">${item.category}</span>
+                <span class="inspo-card-cta">+ Elegir este diseño</span>
+              </div>
             </div>
-            <div class="inspo-item-footer">
-              <h4>${item.title || 'Diseño de Uñas'}</h4>
-              <button type="button" class="btn-choose-inspo" onclick="window.selectInspo('${item.id}')">
-                Elegir este diseño
-              </button>
-            </div>
-          </div>
-        `
+          `
                 )
                 .join('')
         }
@@ -324,8 +513,21 @@ function renderInspo() {
   `;
 }
 
-// 5. Mi Turno (Reserva)
+window.selectInspoAndBook = (inspoId, title) => {
+  AppState.bookingDraft.inspoId = inspoId;
+  showToast(`✨ Diseño seleccionado: ${title}`);
+  navigateTo('services');
+};
+
+// ----------------------------------------------------------------------------
+// PANTALLA 5: MI TURNO (PROCESO DE RESERVA NATIVO)
+// ----------------------------------------------------------------------------
 function renderBooking() {
+  const selectedService = AppState.services.find((s) => s.id === AppState.bookingDraft.serviceId);
+  const depositAmount = selectedService
+    ? selectedService.deposit || Math.round((selectedService.price * (AppState.salon.depositPercent || 50)) / 100)
+    : 10000;
+
   return `
     <div class="screen-viewport">
       <header class="app-header">
@@ -335,16 +537,30 @@ function renderBooking() {
         </div>
       </header>
 
-      <div class="booking-steps-container">
-        <!-- Paso 1: Trabajo Elegido -->
+      <div class="booking-flow-container">
+        <!-- Paso 1: Servicio Seleccionado -->
         <div class="step-box">
-          <div class="step-title">1. Trabajo a Realizar</div>
-          <p style="font-size: 13px; color: var(--text-muted);">
-            ${AppState.bookingDraft.serviceId ? 'Trabajo seleccionado' : 'Tocá abajo para elegir qué servicio deseas:'}
-          </p>
-          <button type="button" class="btn-book-service" style="margin-top: 8px; width: 100%;" onclick="navigateTo('services')">
-            ${AppState.bookingDraft.serviceId ? 'Cambiar Trabajo' : 'Elegir Servicio del Catálogo'}
-          </button>
+          <div class="step-title">1. Trabajo Seleccionado</div>
+          ${
+            selectedService
+              ? `
+            <div class="selected-service-summary">
+              <div>
+                <strong>${selectedService.name}</strong>
+                <p style="font-size: 11.5px; color: var(--text-muted); margin-top: 2px;">
+                  Duración aprox: ${selectedService.duration || 60} min
+                </p>
+              </div>
+              <span style="font-size: 15px; font-weight: 800; color: var(--text-main);">$${Number(selectedService.price).toLocaleString('es-AR')}</span>
+            </div>
+          `
+              : `
+            <div style="text-align: center; padding: 14px 0;">
+              <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 8px;">Aún no elegiste qué trabajo querés realizarte.</p>
+              <button type="button" class="btn-book-service" onclick="navigateTo('services')">Elegir un Servicio</button>
+            </div>
+          `
+          }
         </div>
 
         <!-- Paso 2: Día y Horario -->
@@ -354,6 +570,7 @@ function renderBooking() {
           <div class="dates-row">
             <div class="date-pill active">Hoy</div>
             <div class="date-pill">Mañana</div>
+            <div class="date-pill">Jueves</div>
             <div class="date-pill">Viernes</div>
             <div class="date-pill">Sábado</div>
           </div>
@@ -378,19 +595,20 @@ function renderBooking() {
 
         <!-- Paso 4: Seña y WhatsApp -->
         <div class="step-box">
-          <div class="step-title">4. Seña del 50% y Confirmación</div>
+          <div class="step-title">4. Seña del ${AppState.salon.depositPercent || 50}% y Confirmación</div>
           <div class="deposit-info-box">
-            <span style="font-size: 11px; font-weight: 800; color: var(--rose-dark); letter-spacing: 0.05em; text-transform: uppercase;">
-              Seña para congelar tu turno
+            <span style="font-size: 10px; font-weight: 800; color: var(--accent-dark); letter-spacing: 0.08em; text-transform: uppercase;">
+              Monto de Seña para congelar tu turno
             </span>
-            <div class="deposit-amount-highlight">$10.000</div>
+            <div class="deposit-amount-highlight">$${Number(depositAmount).toLocaleString('es-AR')}</div>
             <p style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">
-              Transferí el 50% al siguiente Alias de Mercado Pago / Banco:
+              Transferí al siguiente Alias de Mercado Pago / Banco:
             </p>
             <div class="alias-copy-row">
               <div class="alias-box">${AppState.salon.alias || 'TU.ALIAS.MP'}</div>
               <button type="button" class="btn-copy-alias" onclick="window.copyAlias()">Copiar</button>
             </div>
+            ${AppState.salon.aliasHolder ? `<p style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">Titular: <strong>${AppState.salon.aliasHolder}</strong></p>` : ''}
           </div>
 
           <button type="button" class="btn-confirm-whatsapp" onclick="window.confirmBookingWhatsapp()">
@@ -403,7 +621,9 @@ function renderBooking() {
   `;
 }
 
-// 6. Panel del Dueño (Pantalla Completa)
+// ----------------------------------------------------------------------------
+// PANTALLA 6: PANEL DEL DUEÑO (MINIMALISTA MODERNO - ACCESO Y SUBVISTAS)
+// ----------------------------------------------------------------------------
 function renderPanel() {
   // Si no está desbloqueado, mostrar pantalla de PIN
   if (!AppState.isOwnerUnlocked) {
@@ -447,7 +667,20 @@ function renderPanel() {
     `;
   }
 
-  // Si está desbloqueado, mostrar las 6 Tarjetas Grandes del Panel
+  // Rutas de subpantallas internas del panel
+  if (AppState.panelSubView === 'salon') {
+    return renderPanelSalon();
+  }
+  if (AppState.panelSubView === 'services') {
+    return renderPanelServices();
+  }
+  if (AppState.panelSubView === 'photos') {
+    return renderPanelPhotos();
+  }
+
+  // Menú Principal del Panel (6 Tarjetas Grandes + Barra de Color en Vivo)
+  const currentTheme = AppState.salon.themeColor || 'rose';
+
   return `
     <div class="screen-viewport">
       <header class="app-header">
@@ -461,9 +694,26 @@ function renderPanel() {
         </div>
       </header>
 
-      <div style="padding: 0 18px 12px;">
-        <span style="font-size: 11px; font-weight: 800; color: var(--rose-dark); letter-spacing: 0.08em; text-transform: uppercase;">
-          Administración de ${AppState.salon.name || 'tu Salón'}
+      <!-- Selector Rápido de Paleta de Color Minimalista (Petición explícita del usuario) -->
+      <div class="palette-switcher-card">
+        <div>
+          <span class="palette-title">🎨 PALETA DEL SALÓN</span>
+          <div style="font-size: 11px; font-weight: 700; color: var(--text-main); margin-top: 1px;">
+            ${getPaletteName(currentTheme)}
+          </div>
+        </div>
+        <div class="palette-swatches-row">
+          <button type="button" class="palette-swatch-btn ${currentTheme === 'rose' ? 'active' : ''}" style="background: #e07a82;" onclick="window.selectThemePalette('rose')" title="Blush Rose (Referencia)"></button>
+          <button type="button" class="palette-swatch-btn ${currentTheme === 'nude' ? 'active' : ''}" style="background: #c2856e;" onclick="window.selectThemePalette('nude')" title="Nude Bronze"></button>
+          <button type="button" class="palette-swatch-btn ${currentTheme === 'champagne' ? 'active' : ''}" style="background: #c59b27;" onclick="window.selectThemePalette('champagne')" title="Champagne Gold"></button>
+          <button type="button" class="palette-swatch-btn ${currentTheme === 'sage' ? 'active' : ''}" style="background: #527560;" onclick="window.selectThemePalette('sage')" title="Olive Sage"></button>
+          <button type="button" class="palette-swatch-btn ${currentTheme === 'noir' ? 'active' : ''}" style="background: #18181b;" onclick="window.selectThemePalette('noir')" title="Noir Minimal"></button>
+        </div>
+      </div>
+
+      <div style="padding: 0 18px 10px;">
+        <span style="font-size: 11px; font-weight: 800; color: var(--accent-dark); letter-spacing: 0.08em; text-transform: uppercase;">
+          Gestión Integral • ${AppState.salon.name || 'tu Salón'}
         </span>
       </div>
 
@@ -474,7 +724,7 @@ function renderPanel() {
           <div class="big-card-icon" style="background: #e0f2fe; color: #0284c7;">${Icons.calendar}</div>
           <div>
             <h3>Agenda de Turnos</h3>
-            <p>Horarios, estados y WhatsApp</p>
+            <p>0 turnos hoy • Estados y WhatsApp</p>
           </div>
         </div>
 
@@ -483,16 +733,16 @@ function renderPanel() {
           <div class="big-card-icon" style="background: #fdf2f8; color: #db2777;">${Icons.users}</div>
           <div>
             <h3>Clientas</h3>
-            <p>Historial y fichas automáticas</p>
+            <p>0 fichas • Historial y gustos</p>
           </div>
         </div>
 
         <!-- 3. Servicios y Precios -->
         <div class="owner-big-card" onclick="window.openPanelSubView('services')">
-          <div class="big-card-icon" style="background: var(--rose-soft); color: var(--rose-primary);">${Icons.scissors}</div>
+          <div class="big-card-icon" style="background: var(--accent-soft); color: var(--accent-primary);">${Icons.scissors}</div>
           <div>
             <h3>Servicios & Precios</h3>
-            <p>Categorías, trabajos y señas</p>
+            <p>${AppState.services.length} trabajos • Categorías y señas</p>
           </div>
         </div>
 
@@ -501,7 +751,7 @@ function renderPanel() {
           <div class="big-card-icon" style="background: #dcfce7; color: #16a34a;">${Icons.dollar}</div>
           <div>
             <h3>Finanzas & Caja</h3>
-            <p>Ingresos, señas y cobros</p>
+            <p>Ingresos del día • Señas y balance</p>
           </div>
         </div>
 
@@ -510,7 +760,7 @@ function renderPanel() {
           <div class="big-card-icon" style="background: #fef3c7; color: #d97706;">${Icons.store}</div>
           <div>
             <h3>Datos del Salón</h3>
-            <p>Nombre, horarios y alias CBU</p>
+            <p>Nombre, horarios, Alias / CBU</p>
           </div>
         </div>
 
@@ -519,7 +769,7 @@ function renderPanel() {
           <div class="big-card-icon" style="background: #ede9fe; color: #7c3aed;">${Icons.camera}</div>
           <div>
             <h3>Fotos & Textos</h3>
-            <p>Portada y galería de trabajos</p>
+            <p>Portada, banner promo y galería</p>
           </div>
         </div>
       </div>
@@ -528,13 +778,544 @@ function renderPanel() {
 }
 
 // ----------------------------------------------------------------------------
-// CONTROLADORES DE ACCIONES RÁPIDAS
+// SUBPANTALLA: 5. DATOS DEL SALÓN
+// ----------------------------------------------------------------------------
+function renderPanelSalon() {
+  const salon = AppState.salon;
+
+  return `
+    <div class="screen-viewport">
+      <header class="app-header">
+        <div class="app-header-left">
+          <button type="button" class="header-back-btn" onclick="window.openPanelSubView('menu')">${Icons.chevronLeft}</button>
+          <h2 class="app-header-title">Datos del Salón</h2>
+        </div>
+      </header>
+
+      <div class="panel-subview">
+        <form class="form-card" onsubmit="window.handleSaveSalonData(event)">
+          <h3>Información General</h3>
+          <p class="form-card-sub">Estos datos se reflejan de inmediato en la pantalla de la clienta:</p>
+
+          <div class="form-group-clean">
+            <label>Nombre del Salón</label>
+            <input type="text" id="salon-name-input" value="${salon.name || ''}" placeholder="Ej: Studio Chic & Nails" required />
+          </div>
+
+          <div class="form-group-clean">
+            <label>Eslogan o Subtítulo</label>
+            <input type="text" id="salon-tagline-input" value="${salon.tagline || ''}" placeholder="Ej: Estética de uñas y peluquería profesional" />
+          </div>
+
+          <div class="form-group-clean">
+            <label>Dirección del Local</label>
+            <input type="text" id="salon-address-input" value="${salon.address || ''}" placeholder="Ej: Av. Santa Fe 1234, Local 4" />
+          </div>
+
+          <div class="form-group-clean">
+            <label>Teléfono de WhatsApp (con código de país, sin + ni espacios)</label>
+            <input type="tel" id="salon-phone-input" value="${salon.phone || ''}" placeholder="Ej: 5491123456789" />
+          </div>
+
+          <h3 style="margin-top: 18px;">Cobro de Seña</h3>
+          <p class="form-card-sub">Datos bancarios para que la clienta congele su turno:</p>
+
+          <div class="form-group-clean">
+            <label>Alias de Mercado Pago o Banco</label>
+            <input type="text" id="salon-alias-input" value="${salon.alias || ''}" placeholder="Ej: SALON.MP" />
+          </div>
+
+          <div class="form-group-clean">
+            <label>Nombre del Titular de la Cuenta</label>
+            <input type="text" id="salon-alias-holder-input" value="${salon.aliasHolder || ''}" placeholder="Ej: María Pérez" />
+          </div>
+
+          <div class="form-group-clean">
+            <label>Porcentaje de Seña por Defecto (%)</label>
+            <input type="number" id="salon-deposit-input" value="${salon.depositPercent || 50}" min="0" max="100" />
+          </div>
+
+          <button type="submit" class="btn-primary-action" style="width: 100%; margin-top: 10px;">
+            Guardar Cambios del Salón
+          </button>
+        </form>
+      </div>
+    </div>
+  `;
+}
+
+window.selectThemePalette = (theme) => {
+  applyTheme(theme);
+  AppState.salon.themeColor = theme;
+  DataStore.set('salon', 'config', AppState.salon);
+  showToast(`🎨 Color actualizado: ${getPaletteName(theme)}`);
+  renderApp();
+};
+
+window.handleSaveSalonData = async (e) => {
+  e.preventDefault();
+  const name = document.getElementById('salon-name-input')?.value.trim();
+  const tagline = document.getElementById('salon-tagline-input')?.value.trim();
+  const address = document.getElementById('salon-address-input')?.value.trim();
+  const phone = document.getElementById('salon-phone-input')?.value.trim();
+  const alias = document.getElementById('salon-alias-input')?.value.trim();
+  const aliasHolder = document.getElementById('salon-alias-holder-input')?.value.trim();
+  const depositPercent = Number(document.getElementById('salon-deposit-input')?.value) || 50;
+
+  AppState.salon = {
+    ...AppState.salon,
+    name,
+    tagline,
+    address,
+    phone,
+    alias,
+    aliasHolder,
+    depositPercent
+  };
+
+  await DataStore.set('salon', 'config', AppState.salon);
+  showToast('✅ Datos del salón guardados exitosamente');
+  window.openPanelSubView('menu');
+};
+
+// ----------------------------------------------------------------------------
+// SUBPANTALLA: 3. SERVICIOS Y PRECIOS (GESTIÓN DE CATEGORÍAS Y TRABAJOS)
+// ----------------------------------------------------------------------------
+function renderPanelServices() {
+  const categories = AppState.categories || [];
+  const services = AppState.services || [];
+  const editingService = services.find((s) => s.id === AppState.editingServiceId);
+
+  return `
+    <div class="screen-viewport">
+      <header class="app-header">
+        <div class="app-header-left">
+          <button type="button" class="header-back-btn" onclick="window.openPanelSubView('menu')">${Icons.chevronLeft}</button>
+          <h2 class="app-header-title">Servicios & Precios</h2>
+        </div>
+      </header>
+
+      <div class="panel-subview">
+        <!-- SECCIÓN 1: CATEGORÍAS -->
+        <div class="form-card">
+          <h3>Categorías de Trabajos</h3>
+          <p class="form-card-sub">Creá las pestañas que verán tus clientas (ej: Uñas, Peluquería, Pestañas):</p>
+
+          <div style="display: flex; gap: 8px;">
+            <input type="text" id="new-category-input" placeholder="Nombre de categoría..." style="flex: 1; padding: 10px 14px; border: 1px solid rgba(0,0,0,0.1); border-radius: 10px; font-size: 13px;" />
+            <button type="button" class="btn-primary-action" style="padding: 10px 14px; white-space: nowrap;" onclick="window.handleCreateCategory()">
+              + Agregar
+            </button>
+          </div>
+
+          <div class="category-manager-list">
+            ${
+              categories.length === 0
+                ? '<p style="font-size: 12px; color: var(--text-muted);">Sin categorías aún. Agregá la primera arriba (ej: Uñas, Peluquería).</p>'
+                : categories
+                    .map(
+                      (c) => `
+                <div class="category-manager-pill">
+                  <span>${c.name}</span>
+                  <button type="button" class="category-del-btn" onclick="window.handleDeleteCategory('${c.id}', '${c.name}')" title="Eliminar categoría">
+                    ×
+                  </button>
+                </div>
+              `
+                    )
+                    .join('')
+            }
+          </div>
+        </div>
+
+        <!-- SECCIÓN 2: FORMULARIO AGREGAR / EDITAR TRABAJO -->
+        <form class="form-card" onsubmit="window.handleSaveService(event)">
+          <h3>${editingService ? '✏️ Editar Trabajo' : '➕ Nuevo Trabajo / Servicio'}</h3>
+          <p class="form-card-sub">Completá los datos del servicio para publicarlo en la app:</p>
+
+          <div class="form-group-clean">
+            <label>Nombre del Servicio</label>
+            <input type="text" id="srv-name-input" value="${editingService ? editingService.name : ''}" placeholder="Ej: Kapping Gel con Diseño" required />
+          </div>
+
+          <div class="form-group-clean">
+            <label>Categoría</label>
+            <select id="srv-category-input" required>
+              ${
+                categories.length === 0
+                  ? '<option value="">(Creá primero una categoría arriba)</option>'
+                  : categories
+                      .map(
+                        (c) => `
+                    <option value="${c.id}" ${editingService && editingService.categoryId === c.id ? 'selected' : ''}>
+                      ${c.name}
+                    </option>
+                  `
+                      )
+                      .join('')
+              }
+            </select>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+            <div class="form-group-clean">
+              <label>Precio Final ($)</label>
+              <input type="number" id="srv-price-input" value="${editingService ? editingService.price : ''}" placeholder="Ej: 25000" required />
+            </div>
+
+            <div class="form-group-clean">
+              <label>Duración</label>
+              <select id="srv-duration-input">
+                <option value="30" ${editingService && editingService.duration == 30 ? 'selected' : ''}>30 min</option>
+                <option value="45" ${editingService && editingService.duration == 45 ? 'selected' : ''}>45 min</option>
+                <option value="60" ${!editingService || editingService.duration == 60 ? 'selected' : ''}>60 min (1 h)</option>
+                <option value="90" ${editingService && editingService.duration == 90 ? 'selected' : ''}>90 min (1:30 h)</option>
+                <option value="120" ${editingService && editingService.duration == 120 ? 'selected' : ''}>120 min (2 h)</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-group-clean">
+            <label>Monto de Seña ($ - opcional)</label>
+            <input type="number" id="srv-deposit-input" value="${editingService && editingService.deposit ? editingService.deposit : ''}" placeholder="Dejar vacío para calcular el % del salón" />
+          </div>
+
+          <div class="form-group-clean">
+            <label>Foto del Trabajo (Elegí un preset o pegá una URL)</label>
+            <input type="text" id="srv-image-input" value="${editingService && editingService.image ? editingService.image : './assets/studio-nails.jpg'}" />
+
+            <!-- Chips de fotos rápidas -->
+            <div class="photo-preset-chips">
+              <div class="photo-preset-chip" onclick="window.pickServicePhoto('./assets/inspo-rose-french.jpg')">
+                <img src="./assets/inspo-rose-french.jpg" class="photo-preset-thumb" />
+                <span>Francesitas</span>
+              </div>
+              <div class="photo-preset-chip" onclick="window.pickServicePhoto('./assets/studio-nails.jpg')">
+                <img src="./assets/studio-nails.jpg" class="photo-preset-thumb" />
+                <span>Esculpidas</span>
+              </div>
+              <div class="photo-preset-chip" onclick="window.pickServicePhoto('./assets/service-hair-balayage.jpg')">
+                <img src="./assets/service-hair-balayage.jpg" class="photo-preset-thumb" />
+                <span>Balayage</span>
+              </div>
+              <div class="photo-preset-chip" onclick="window.pickServicePhoto('./assets/service-hair-cut.jpg')">
+                <img src="./assets/service-hair-cut.jpg" class="photo-preset-thumb" />
+                <span>Corte Cabello</span>
+              </div>
+              <div class="photo-preset-chip" onclick="window.pickServicePhoto('./assets/inspo-black-gold.jpg')">
+                <img src="./assets/inspo-black-gold.jpg" class="photo-preset-thumb" />
+                <span>Nail Glam</span>
+              </div>
+            </div>
+          </div>
+
+          <div style="display: flex; gap: 8px;">
+            <button type="submit" class="btn-primary-action" style="flex: 1;">
+              ${editingService ? 'Actualizar Trabajo' : 'Guardar y Publicar Trabajo'}
+            </button>
+            ${
+              editingService
+                ? `
+              <button type="button" class="btn-secondary-action" onclick="window.cancelEditService()">
+                Cancelar
+              </button>
+            `
+                : ''
+            }
+          </div>
+        </form>
+
+        <!-- SECCIÓN 3: LISTA DE TRABAJOS CARGADOS -->
+        <div class="form-card">
+          <h3>Trabajos del Catálogo (${services.length})</h3>
+          <p class="form-card-sub">Podés pausar un servicio para ocultarlo temporalmente, editarlo o borrarlo:</p>
+
+          <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 6px;">
+            ${
+              services.length === 0
+                ? '<p style="font-size: 13px; color: var(--text-muted); text-align: center; padding: 20px;">Aún no cargaste servicios. Usá el formulario arriba.</p>'
+                : services
+                    .map((s) => {
+                      const cat = categories.find((c) => c.id === s.categoryId);
+                      const isActive = s.active !== false;
+
+                      return `
+                  <div class="panel-service-item">
+                    <div class="panel-service-left">
+                      <img src="${s.image || './assets/studio-nails.jpg'}" alt="${s.name}" class="panel-service-photo" onerror="this.src='./assets/studio-nails.jpg'" />
+                      <div class="panel-service-info">
+                        <h4>${s.name}</h4>
+                        <p>${cat ? cat.name : 'General'} • $${Number(s.price || 0).toLocaleString('es-AR')} • ${s.duration || 60}m</p>
+                      </div>
+                    </div>
+                    <div class="panel-service-actions">
+                      <button type="button" class="service-toggle-btn ${isActive ? 'active' : 'inactive'}" onclick="window.handleToggleServiceActive('${s.id}')">
+                        ${isActive ? 'Activo' : 'Pausado'}
+                      </button>
+                      <button type="button" style="background: transparent; border: none; color: var(--accent-primary); cursor: pointer; padding: 4px;" onclick="window.handleStartEditService('${s.id}')">
+                        ${Icons.edit}
+                      </button>
+                      <button type="button" style="background: transparent; border: none; color: #dc2626; cursor: pointer; padding: 4px;" onclick="window.handleDeleteService('${s.id}', '${s.name}')">
+                        ${Icons.trash}
+                      </button>
+                    </div>
+                  </div>
+                `;
+                    })
+                    .join('')
+            }
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+window.pickServicePhoto = (url) => {
+  const input = document.getElementById('srv-image-input');
+  if (input) input.value = url;
+};
+
+// Controladores de Categorías
+window.handleCreateCategory = async () => {
+  const input = document.getElementById('new-category-input');
+  const name = input?.value.trim();
+  if (!name) {
+    showToast('Ingresá el nombre de la categoría');
+    return;
+  }
+  const id = `cat_${Date.now()}`;
+  const newCat = { id, name };
+  AppState.categories.push(newCat);
+  await DataStore.set('categories', id, newCat);
+  input.value = '';
+  showToast(`✅ Categoría "${name}" agregada`);
+  renderApp();
+};
+
+window.handleDeleteCategory = async (catId, catName) => {
+  const confirmDelete = window.confirm(`¿Seguro que deseas eliminar la categoría "${catName}"?`);
+  if (!confirmDelete) return;
+
+  AppState.categories = AppState.categories.filter((c) => c.id !== catId);
+  await DataStore.remove('categories', catId);
+  showToast(`🗑️ Categoría "${catName}" eliminada`);
+  renderApp();
+};
+
+// Controladores de Servicios
+window.handleSaveService = async (e) => {
+  e.preventDefault();
+  const name = document.getElementById('srv-name-input')?.value.trim();
+  const categoryId = document.getElementById('srv-category-input')?.value;
+  const price = Number(document.getElementById('srv-price-input')?.value) || 0;
+  const duration = Number(document.getElementById('srv-duration-input')?.value) || 60;
+  const deposit = Number(document.getElementById('srv-deposit-input')?.value) || null;
+  const image = document.getElementById('srv-image-input')?.value.trim() || './assets/studio-nails.jpg';
+
+  if (!name) {
+    showToast('Ingresá el nombre del trabajo');
+    return;
+  }
+  if (!categoryId) {
+    showToast('Primero creá una categoría');
+    return;
+  }
+
+  const isEditing = AppState.editingServiceId !== null;
+  const id = isEditing ? AppState.editingServiceId : `srv_${Date.now()}`;
+
+  const serviceData = {
+    id,
+    name,
+    categoryId,
+    price,
+    duration,
+    deposit,
+    image,
+    active: true
+  };
+
+  if (isEditing) {
+    AppState.services = AppState.services.map((s) => (s.id === id ? { ...s, ...serviceData } : s));
+    showToast(`✅ Servicio "${name}" actualizado`);
+  } else {
+    AppState.services.push(serviceData);
+    showToast(`✅ Servicio "${name}" agregado al catálogo`);
+  }
+
+  await DataStore.set('services', id, serviceData);
+  AppState.editingServiceId = null;
+  renderApp();
+};
+
+window.handleStartEditService = (serviceId) => {
+  AppState.editingServiceId = serviceId;
+  renderApp();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+};
+
+window.cancelEditService = () => {
+  AppState.editingServiceId = null;
+  renderApp();
+};
+
+window.handleToggleServiceActive = async (serviceId) => {
+  const service = AppState.services.find((s) => s.id === serviceId);
+  if (!service) return;
+  service.active = service.active === false ? true : false;
+  await DataStore.set('services', serviceId, service);
+  showToast(service.active ? `👁️ Servicio activado en el catálogo` : `⏸️ Servicio pausado (oculto)`);
+  renderApp();
+};
+
+window.handleDeleteService = async (serviceId, serviceName) => {
+  const confirmDelete = window.confirm(`¿Seguro que deseas eliminar el servicio "${serviceName}"? Esta acción no se puede deshacer.`);
+  if (!confirmDelete) return;
+
+  AppState.services = AppState.services.filter((s) => s.id !== serviceId);
+  await DataStore.remove('services', serviceId);
+  showToast(`🗑️ Servicio "${serviceName}" eliminado`);
+  renderApp();
+};
+
+// ----------------------------------------------------------------------------
+// SUBPANTALLA: 6. FOTOS Y TEXTOS (PORTADA, BANNER PROMO Y GALERÍA)
+// ----------------------------------------------------------------------------
+function renderPanelPhotos() {
+  const salon = AppState.salon;
+
+  return `
+    <div class="screen-viewport">
+      <header class="app-header">
+        <div class="app-header-left">
+          <button type="button" class="header-back-btn" onclick="window.openPanelSubView('menu')">${Icons.chevronLeft}</button>
+          <h2 class="app-header-title">Fotos & Textos</h2>
+        </div>
+      </header>
+
+      <div class="panel-subview">
+        <!-- Portada -->
+        <form class="form-card" onsubmit="window.handleSaveSplashContent(event)">
+          <h3>Portada Principal</h3>
+          <p class="form-card-sub">Textos y foto que ve la clienta al ingresar a la app:</p>
+
+          <div class="form-group-clean">
+            <label>Título Superior</label>
+            <input type="text" id="splash-title-input" value="${salon.splashTitle || 'Look Good,'}" required />
+          </div>
+
+          <div class="form-group-clean">
+            <label>Subtítulo Cursiva / Destacado</label>
+            <input type="text" id="splash-sub-input" value="${salon.splashSubtitle || 'Feel Beautiful'}" required />
+          </div>
+
+          <div class="form-group-clean">
+            <label>Foto de Fondo de Portada</label>
+            <input type="text" id="splash-hero-input" value="${salon.splashHero || './assets/splash-hero.jpg'}" />
+            
+            <div class="photo-preset-chips">
+              <div class="photo-preset-chip" onclick="document.getElementById('splash-hero-input').value='./assets/splash-hero.jpg'">
+                <img src="./assets/splash-hero.jpg" class="photo-preset-thumb" />
+                <span>Modelo Studio</span>
+              </div>
+              <div class="photo-preset-chip" onclick="document.getElementById('splash-hero-input').value='./assets/studio-interior.jpg'">
+                <img src="./assets/studio-interior.jpg" class="photo-preset-thumb" />
+                <span>Salón Lounge</span>
+              </div>
+            </div>
+          </div>
+
+          <button type="submit" class="btn-primary-action" style="width: 100%;">
+            Guardar Textos de Portada
+          </button>
+        </form>
+
+        <!-- Banner Promocional -->
+        <form class="form-card" onsubmit="window.handleSaveBannerContent(event)">
+          <h3>Banner Promocional de Inicio</h3>
+          <p class="form-card-sub">Tarjeta destacada con foto y texto integrada en la pantalla Inicio:</p>
+
+          <div class="form-group-clean">
+            <label>Etiqueta / Badge</label>
+            <input type="text" id="banner-badge-input" value="${salon.bannerBadge || 'Promoción de la Semana'}" />
+          </div>
+
+          <div class="form-group-clean">
+            <label>Título de la Promo</label>
+            <input type="text" id="banner-title-input" value="${salon.bannerTitle || '20% OFF en Balayage & Uñas'}" />
+          </div>
+
+          <div class="form-group-clean">
+            <label>Subtítulo o Condiciones</label>
+            <input type="text" id="banner-subtitle-input" value="${salon.bannerSubtitle || 'Válido agendando tu turno online este mes'}" />
+          </div>
+
+          <div class="form-group-clean">
+            <label>Foto de la Promo</label>
+            <input type="text" id="banner-img-input" value="${salon.bannerImage || './assets/service-hair-balayage.jpg'}" />
+
+            <div class="photo-preset-chips">
+              <div class="photo-preset-chip" onclick="document.getElementById('banner-img-input').value='./assets/service-hair-balayage.jpg'">
+                <img src="./assets/service-hair-balayage.jpg" class="photo-preset-thumb" />
+                <span>Balayage</span>
+              </div>
+              <div class="photo-preset-chip" onclick="document.getElementById('banner-img-input').value='./assets/studio-nails.jpg'">
+                <img src="./assets/studio-nails.jpg" class="photo-preset-thumb" />
+                <span>Uñas Estudio</span>
+              </div>
+              <div class="photo-preset-chip" onclick="document.getElementById('banner-img-input').value='./assets/service-hair-cut.jpg'">
+                <img src="./assets/service-hair-cut.jpg" class="photo-preset-thumb" />
+                <span>Corte Cabello</span>
+              </div>
+            </div>
+          </div>
+
+          <button type="submit" class="btn-primary-action" style="width: 100%;">
+            Guardar Banner Promocional
+          </button>
+        </form>
+      </div>
+    </div>
+  `;
+}
+
+window.handleSaveSplashContent = async (e) => {
+  e.preventDefault();
+  AppState.salon.splashTitle = document.getElementById('splash-title-input')?.value.trim();
+  AppState.salon.splashSubtitle = document.getElementById('splash-sub-input')?.value.trim();
+  AppState.salon.splashHero = document.getElementById('splash-hero-input')?.value.trim();
+  await DataStore.set('salon', 'config', AppState.salon);
+  showToast('✅ Textos de portada actualizados');
+  renderApp();
+};
+
+window.handleSaveBannerContent = async (e) => {
+  e.preventDefault();
+  AppState.salon.bannerBadge = document.getElementById('banner-badge-input')?.value.trim();
+  AppState.salon.bannerTitle = document.getElementById('banner-title-input')?.value.trim();
+  AppState.salon.bannerSubtitle = document.getElementById('banner-subtitle-input')?.value.trim();
+  AppState.salon.bannerImage = document.getElementById('banner-img-input')?.value.trim();
+  await DataStore.set('salon', 'config', AppState.salon);
+  showToast('✅ Banner promocional actualizado');
+  renderApp();
+};
+
+// ----------------------------------------------------------------------------
+// CONTROLADORES GLOBALES
 // ----------------------------------------------------------------------------
 window.lockOwnerPanel = () => {
   AppState.isOwnerUnlocked = false;
+  AppState.panelSubView = 'menu';
   AppState.pinDraft = '';
   showToast('🔒 Sesión cerrada');
   navigateTo('home');
+};
+
+window.openPanelSubView = (subView) => {
+  AppState.panelSubView = subView;
+  renderApp();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
 };
 
 window.copyAlias = () => {
@@ -546,16 +1327,14 @@ window.copyAlias = () => {
 window.confirmBookingWhatsapp = () => {
   const name = document.getElementById('client-name-input')?.value.trim() || 'Clienta';
   const phone = document.getElementById('client-phone-input')?.value.trim() || '';
-  const salonPhone = AppState.salon.phone || '5491100000000';
+  const salonPhone = AppState.salon.phone || '';
+  const currentService = AppState.services.find((s) => s.id === AppState.bookingDraft.serviceId);
+  const srvName = currentService ? currentService.name : 'Servicio';
 
-  const text = `¡Hola! Quiero confirmar mi turno en ${AppState.salon.name || 'el salón'}:\n• Nombre: ${name}\n• Teléfono: ${phone}\n• Seña: 50% enviada.`;
+  const text = `¡Hola! Quiero confirmar mi turno en ${AppState.salon.name}:\n• Servicio: ${srvName}\n• Nombre: ${name}\n• Teléfono: ${phone}\n• Seña transferida al Alias: ${AppState.salon.alias}`;
   const url = `https://wa.me/${salonPhone}?text=${encodeURIComponent(text)}`;
   window.open(url, '_blank');
   showToast('✅ ¡Turno agendado y enviado por WhatsApp!');
-};
-
-window.openPanelSubView = (subView) => {
-  showToast(`Ingresando a: ${subView}`);
 };
 
 // ----------------------------------------------------------------------------
@@ -590,7 +1369,9 @@ function renderApp() {
   }
 
   // Barra inferior (visible en todas las pantallas excepto Portada y Teclado PIN)
-  const showBottomNav = AppState.activeScreen !== 'splash' && !(AppState.activeScreen === 'panel' && !AppState.isOwnerUnlocked);
+  const showBottomNav =
+    AppState.activeScreen !== 'splash' &&
+    !(AppState.activeScreen === 'panel' && !AppState.isOwnerUnlocked);
 
   const bottomNavHtml = showBottomNav
     ? `
@@ -632,24 +1413,27 @@ function renderApp() {
 // INICIALIZACIÓN
 // ----------------------------------------------------------------------------
 async function startApp() {
-  // Inicializar Firebase o DataStore
   await initFirebase();
 
-  // Cargar datos del salón
   const savedSalon = await DataStore.get('salon', 'config');
   if (savedSalon) {
     AppState.salon = { ...AppState.salon, ...savedSalon };
   }
 
-  // Cargar categorías, servicios e inspo
+  // Aplicar tema configurado
+  applyTheme(AppState.salon.themeColor || 'rose');
+
   AppState.categories = await DataStore.getAll('categories');
   AppState.services = await DataStore.getAll('services');
-  AppState.inspo = await DataStore.getAll('inspo');
   AppState.appointments = await DataStore.getAll('appointments');
   AppState.clients = await DataStore.getAll('clients');
   AppState.finances = await DataStore.getAll('finances');
 
-  // Render inicial
+  const savedInspo = await DataStore.getAll('inspo');
+  if (savedInspo && savedInspo.length > 0) {
+    AppState.inspo = savedInspo;
+  }
+
   renderApp();
 }
 
