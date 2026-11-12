@@ -197,32 +197,41 @@ window.handlePinKey = handlePinKey;
 window.handlePinDelete = handlePinDelete;
 
 // ----------------------------------------------------------------------------
-// PANTALLA 1: PORTADA (SPLASH - ESTILO FOTO DE REFERENCIA)
+// PANTALLA 1: PORTADA (SPLASH - FOTO EN PRIMER PLANO LUMINOSA ESTILO REFERENCIA)
 // ----------------------------------------------------------------------------
 function renderSplash() {
   return `
     <div class="screen-viewport no-bottom-bar splash-container">
-      <img src="${AppState.salon.splashHero || './assets/splash-hero.jpg'}" alt="Salón" class="splash-bg-media" onerror="this.src='./assets/splash-hero.jpg'" />
-      <div class="splash-overlay"></div>
-
-      <div class="splash-top">
-        <span class="splash-brand-badge">${AppState.salon.name || 'Beauty Studio'}</span>
+      <!-- Sección Superior: Foto Nítida y Luminosa en Primer Plano (Sin filtros oscuros) -->
+      <div class="splash-photo-hero">
+        <img
+          src="${AppState.salon.splashHero || './assets/splash-hero.jpg'}"
+          alt="Salón de Belleza"
+          class="splash-hero-img"
+          onerror="this.src='./assets/splash-hero.jpg'"
+        />
+        <div class="splash-top-bar">
+          <span class="splash-brand-badge">${AppState.salon.name || 'Beauty Studio'}</span>
+        </div>
+        <div class="splash-hero-bottom-fade"></div>
       </div>
 
-      <div class="splash-bottom">
+      <!-- Sección Inferior: Textos y Botones sobre Fondo Limpio Negro Elegante -->
+      <div class="splash-bottom-content">
         <h1 class="splash-title">
           ${AppState.salon.splashTitle || 'Look Good,'}<br />
           <span class="accent">${AppState.salon.splashSubtitle || 'Feel Beautiful'}</span>
         </h1>
-        <p class="splash-subtitle">${AppState.salon.tagline || 'Elegí tu trabajo, agendá tu horario y asegurá tu turno online en simples pasos.'}</p>
+        <p class="splash-subtitle">${AppState.salon.tagline || 'Beauty And Style, Designed Just For You'}</p>
 
         <button type="button" class="splash-btn-primary" onclick="navigateTo('services')">
           <span>Reservar Turno</span>
-          <span style="font-size: 18px;">→</span>
+          <span class="splash-btn-circle">→</span>
         </button>
 
         <button type="button" class="splash-btn-secondary" onclick="navigateTo('home')">
-          Conocer el Salón & Servicios
+          <span>Conocer Servicios & Salón</span>
+          <span style="font-size: 11px;">▼</span>
         </button>
       </div>
     </div>

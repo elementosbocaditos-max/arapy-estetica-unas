@@ -250,46 +250,162 @@ body.theme-noir .header-back-btn {
 }
 
 /* ----------------------------------------------------------------------------
-   PANTALLA 1: PORTADA (SPLASH - ESTILO FOTO DE REFERENCIA)
+   PANTALLA 1: PORTADA (SPLASH - FOTO EN PRIMER PLANO LUMINOSA ESTILO REFERENCIA)
    ---------------------------------------------------------------------------- */
 .splash-container {
   min-height: 100%;
+  height: 100%;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  position: relative;
-  background: #0d0a0b;
+  background: #000000;
   color: #fff;
-  padding: 26px 20px 34px;
+  padding: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
-.splash-bg-media {
-  position: absolute;
-  inset: 0;
+.splash-photo-hero {
+  position: relative;
+  width: 100%;
+  height: 54dvh;
+  min-height: 340px;
+  max-height: 480px;
+  flex-shrink: 0;
+  background: #000000;
+  overflow: hidden;
+}
+
+.splash-hero-img {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  opacity: 0.92;
-  filter: brightness(1.08) contrast(1.05);
-  z-index: 1;
+  object-position: top center;
+  display: block;
+  opacity: 1 !important;
+  filter: brightness(1.08) contrast(1.04);
 }
 
-.splash-overlay {
+.splash-top-bar {
   position: absolute;
-  inset: 0;
-  background: linear-gradient(
-    180deg,
-    rgba(13, 10, 11, 0.1) 0%,
-    rgba(13, 10, 11, 0.05) 30%,
-    rgba(13, 10, 11, 0.45) 65%,
-    rgba(13, 10, 11, 0.88) 100%
-  );
-  z-index: 2;
+  top: 20px;
+  left: 18px;
+  z-index: 10;
 }
 
-.splash-top, .splash-bottom {
+.splash-brand-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #fff;
+}
+
+/* Transición suave hacia el negro puro abajo del torso, sin tapar ni oscurecer rostro ni cabello */
+.splash-hero-bottom-fade {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 70px;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0.75) 60%, #000000 100%);
+  pointer-events: none;
+}
+
+.splash-bottom-content {
+  flex: 1;
+  background: #000000;
+  padding: 4px 22px 32px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
   position: relative;
-  z-index: 3;
+  z-index: 5;
+}
+
+.splash-title {
+  font-size: 38px;
+  line-height: 1.08;
+  font-weight: 800;
+  margin-bottom: 8px;
+  font-family: var(--font-sans);
+  color: #ffffff;
+  letter-spacing: -0.02em;
+}
+
+.splash-title .accent {
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-weight: 600;
+  color: var(--accent-primary);
+  display: inline-block;
+}
+
+.splash-subtitle {
+  font-size: 13.5px;
+  line-height: 1.45;
+  color: rgba(255, 255, 255, 0.75);
+  margin-bottom: 22px;
+  max-width: 320px;
+}
+
+.splash-btn-primary {
+  width: 100%;
+  background: var(--accent-primary);
+  color: #fff;
+  border: none;
+  padding: 13px 16px 13px 24px;
+  border-radius: 999px;
+  font-size: 14.5px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  box-shadow: 0 8px 24px rgba(224, 122, 130, 0.35);
+  transition: transform 0.1s ease;
+}
+
+.splash-btn-primary:active {
+  transform: scale(0.98);
+}
+
+.splash-btn-circle {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: #ffffff;
+  color: var(--accent-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  font-weight: 900;
+}
+
+.splash-btn-secondary {
+  width: 100%;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.7);
+  border: none;
+  padding: 12px;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 6px;
 }
 
 /* Botón y contenedor para subir foto desde el celular */
@@ -329,79 +445,6 @@ body.theme-noir .header-back-btn {
   width: 100%;
   height: 100%;
   object-fit: cover;
-}
-
-.splash-brand-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  background: rgba(255, 255, 255, 0.18);
-  backdrop-filter: blur(10px);
-  padding: 6px 14px;
-  border-radius: 999px;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: #fff;
-}
-
-.splash-title {
-  font-size: 38px;
-  line-height: 1.1;
-  font-weight: 700;
-  margin-bottom: 10px;
-  font-family: var(--font-sans);
-}
-
-.splash-title .accent {
-  font-family: var(--font-serif);
-  font-style: italic;
-  font-weight: 600;
-  color: var(--accent-primary);
-  display: block;
-}
-
-.splash-subtitle {
-  font-size: 13.5px;
-  line-height: 1.45;
-  color: rgba(255, 255, 255, 0.78);
-  margin-bottom: 24px;
-  max-width: 320px;
-}
-
-.splash-btn-primary {
-  width: 100%;
-  background: var(--accent-primary);
-  color: #fff;
-  border: none;
-  padding: 16px 22px;
-  border-radius: 999px;
-  font-size: 14.5px;
-  font-weight: 700;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  cursor: pointer;
-  box-shadow: 0 8px 24px rgba(224, 122, 130, 0.35);
-  transition: transform 0.1s ease;
-}
-
-.splash-btn-primary:active {
-  transform: scale(0.98);
-}
-
-.splash-btn-secondary {
-  width: 100%;
-  background: transparent;
-  color: rgba(255, 255, 255, 0.75);
-  border: none;
-  padding: 12px;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  text-align: center;
-  margin-top: 8px;
 }
 
 /* ----------------------------------------------------------------------------
