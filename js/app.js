@@ -981,8 +981,13 @@ function renderPanelServices() {
           </div>
 
           <div class="form-group-clean">
-            <label>Foto del Trabajo (Elegí un preset o pegá una URL)</label>
-            <input type="text" id="srv-image-input" value="${editingService && editingService.image ? editingService.image : './assets/studio-nails.jpg'}" />
+            <label>Foto del Trabajo</label>
+            <input type="file" id="service-file-picker" accept="image/*" style="display: none;" onchange="window.handleUploadServicePhoto(event)" />
+            <button type="button" class="btn-upload-file" onclick="document.getElementById('service-file-picker').click()">
+              <span>📷</span>
+              <span>Subir Foto del Trabajo desde Celular</span>
+            </button>
+            <input type="text" id="srv-image-input" value="${editingService && editingService.image ? editingService.image : './assets/studio-nails.jpg'}" style="margin-top: 6px;" />
 
             <!-- Chips de fotos rápidas -->
             <div class="photo-preset-chips">
@@ -1074,6 +1079,21 @@ function renderPanelServices() {
 window.pickServicePhoto = (url) => {
   const input = document.getElementById('srv-image-input');
   if (input) input.value = url;
+};
+
+window.handleUploadServicePhoto = async (e) => {
+  const file = e.target.files && e.target.files[0];
+  if (!file) return;
+  showToast('⏳ Optimizando foto del trabajo...');
+  try {
+    const dataUrl = await compressAndReadImage(file, 640, 0.85);
+    const input = document.getElementById('srv-image-input');
+    if (input) input.value = dataUrl;
+    showToast('📸 ¡Foto cargada para el servicio!');
+  } catch (err) {
+    console.error(err);
+    showToast('⚠️ Error al cargar foto');
+  }
 };
 
 // Controladores de Categorías
@@ -1179,6 +1199,34 @@ window.handleDeleteService = async (serviceId, serviceName) => {
   renderApp();
 };
 
+// Helper para comprimir y convertir imágenes seleccionadas desde el celular
+function compressAndReadImage(file, maxWidth = 1080, quality = 0.85) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        let width = img.width;
+        let height = img.height;
+        if (width > maxWidth) {
+          height = Math.round((height * maxWidth) / width);
+          width = maxWidth;
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.onerror = reject;
+      img.src = e.target.result;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
 // ----------------------------------------------------------------------------
 // SUBPANTALLA: 6. FOTOS Y TEXTOS (PORTADA, BANNER PROMO Y GALERÍA)
 // ----------------------------------------------------------------------------
@@ -1195,10 +1243,47 @@ function renderPanelPhotos() {
       </header>
 
       <div class="panel-subview">
-        <!-- Portada -->
+        <!-- Portada Principal -->
         <form class="form-card" onsubmit="window.handleSaveSplashContent(event)">
-          <h3>Portada Principal</h3>
-          <p class="form-card-sub">Textos y foto que ve la clienta al ingresar a la app:</p>
+          <h3>Foto y Textos de Portada</h3>
+          <p class="form-card-sub">Es la primera imagen y bienvenida que ven tus clientas al entrar:</p>
+
+          <div class="form-group-clean">
+            <label>Vista Previa Actual</label>
+            <div class="img-preview-box">
+              <img src="${salon.splashHero || './assets/splash-hero.jpg'}" alt="Portada" onerror="this.src='./assets/splash-hero.jpg'" />
+            </div>
+          </div>
+
+          <div class="form-group-clean">
+            <label>Cambiar Foto de Portada</label>
+            <input type="file" id="splash-file-picker" accept="image/*" style="display: none;" onchange="window.handleUploadSplashPhoto(event)" />
+            <button type="button" class="btn-upload-file" onclick="document.getElementById('splash-file-picker').click()">
+              <span>📷</span>
+              <span>Subir Foto desde tu Celular / Galería</span>
+            </button>
+            <p style="font-size: 11px; color: var(--text-muted); margin-top: 5px;">O seleccioná una de las fotos profesionales preinstaladas:</p>
+            
+            <div class="photo-preset-chips">
+              <div class="photo-preset-chip" onclick="window.setSplashPreset('./assets/splash-hero.jpg')">
+                <img src="./assets/splash-hero.jpg" class="photo-preset-thumb" />
+                <span>Modelo Studio</span>
+              </div>
+              <div class="photo-preset-chip" onclick="window.setSplashPreset('./assets/studio-interior.jpg')">
+                <img src="./assets/studio-interior.jpg" class="photo-preset-thumb" />
+                <span>Salón Lounge</span>
+              </div>
+              <div class="photo-preset-chip" onclick="window.setSplashPreset('./assets/studio-nails.jpg')">
+                <img src="./assets/studio-nails.jpg" class="photo-preset-thumb" />
+                <span>Uñas Studio</span>
+              </div>
+            </div>
+
+            <div style="margin-top: 8px;">
+              <label style="font-size: 10.5px;">O pegar URL directa de imagen:</label>
+              <input type="text" id="splash-hero-input" value="${salon.splashHero || './assets/splash-hero.jpg'}" />
+            </div>
+          </div>
 
           <div class="form-group-clean">
             <label>Título Superior</label>
@@ -1210,24 +1295,8 @@ function renderPanelPhotos() {
             <input type="text" id="splash-sub-input" value="${salon.splashSubtitle || 'Feel Beautiful'}" required />
           </div>
 
-          <div class="form-group-clean">
-            <label>Foto de Fondo de Portada</label>
-            <input type="text" id="splash-hero-input" value="${salon.splashHero || './assets/splash-hero.jpg'}" />
-            
-            <div class="photo-preset-chips">
-              <div class="photo-preset-chip" onclick="document.getElementById('splash-hero-input').value='./assets/splash-hero.jpg'">
-                <img src="./assets/splash-hero.jpg" class="photo-preset-thumb" />
-                <span>Modelo Studio</span>
-              </div>
-              <div class="photo-preset-chip" onclick="document.getElementById('splash-hero-input').value='./assets/studio-interior.jpg'">
-                <img src="./assets/studio-interior.jpg" class="photo-preset-thumb" />
-                <span>Salón Lounge</span>
-              </div>
-            </div>
-          </div>
-
-          <button type="submit" class="btn-primary-action" style="width: 100%;">
-            Guardar Textos de Portada
+          <button type="submit" class="btn-primary-action" style="width: 100%; margin-top: 6px;">
+            Guardar Cambios de Portada
           </button>
         </form>
 
@@ -1235,6 +1304,42 @@ function renderPanelPhotos() {
         <form class="form-card" onsubmit="window.handleSaveBannerContent(event)">
           <h3>Banner Promocional de Inicio</h3>
           <p class="form-card-sub">Tarjeta destacada con foto y texto integrada en la pantalla Inicio:</p>
+
+          <div class="form-group-clean">
+            <label>Vista Previa del Banner</label>
+            <div class="img-preview-box" style="height: 100px;">
+              <img src="${salon.bannerImage || './assets/service-hair-balayage.jpg'}" alt="Banner" onerror="this.src='./assets/studio-nails.jpg'" />
+            </div>
+          </div>
+
+          <div class="form-group-clean">
+            <label>Cambiar Foto de la Promo</label>
+            <input type="file" id="banner-file-picker" accept="image/*" style="display: none;" onchange="window.handleUploadBannerPhoto(event)" />
+            <button type="button" class="btn-upload-file" onclick="document.getElementById('banner-file-picker').click()">
+              <span>📷</span>
+              <span>Subir Foto del Banner desde Celular</span>
+            </button>
+
+            <div class="photo-preset-chips">
+              <div class="photo-preset-chip" onclick="window.setBannerPreset('./assets/service-hair-balayage.jpg')">
+                <img src="./assets/service-hair-balayage.jpg" class="photo-preset-thumb" />
+                <span>Balayage</span>
+              </div>
+              <div class="photo-preset-chip" onclick="window.setBannerPreset('./assets/studio-nails.jpg')">
+                <img src="./assets/studio-nails.jpg" class="photo-preset-thumb" />
+                <span>Uñas Estudio</span>
+              </div>
+              <div class="photo-preset-chip" onclick="window.setBannerPreset('./assets/service-hair-cut.jpg')">
+                <img src="./assets/service-hair-cut.jpg" class="photo-preset-thumb" />
+                <span>Corte Cabello</span>
+              </div>
+            </div>
+
+            <div style="margin-top: 8px;">
+              <label style="font-size: 10.5px;">O URL de imagen:</label>
+              <input type="text" id="banner-img-input" value="${salon.bannerImage || './assets/service-hair-balayage.jpg'}" />
+            </div>
+          </div>
 
           <div class="form-group-clean">
             <label>Etiqueta / Badge</label>
@@ -1251,28 +1356,8 @@ function renderPanelPhotos() {
             <input type="text" id="banner-subtitle-input" value="${salon.bannerSubtitle || 'Válido agendando tu turno online este mes'}" />
           </div>
 
-          <div class="form-group-clean">
-            <label>Foto de la Promo</label>
-            <input type="text" id="banner-img-input" value="${salon.bannerImage || './assets/service-hair-balayage.jpg'}" />
-
-            <div class="photo-preset-chips">
-              <div class="photo-preset-chip" onclick="document.getElementById('banner-img-input').value='./assets/service-hair-balayage.jpg'">
-                <img src="./assets/service-hair-balayage.jpg" class="photo-preset-thumb" />
-                <span>Balayage</span>
-              </div>
-              <div class="photo-preset-chip" onclick="document.getElementById('banner-img-input').value='./assets/studio-nails.jpg'">
-                <img src="./assets/studio-nails.jpg" class="photo-preset-thumb" />
-                <span>Uñas Estudio</span>
-              </div>
-              <div class="photo-preset-chip" onclick="document.getElementById('banner-img-input').value='./assets/service-hair-cut.jpg'">
-                <img src="./assets/service-hair-cut.jpg" class="photo-preset-thumb" />
-                <span>Corte Cabello</span>
-              </div>
-            </div>
-          </div>
-
-          <button type="submit" class="btn-primary-action" style="width: 100%;">
-            Guardar Banner Promocional
+          <button type="submit" class="btn-primary-action" style="width: 100%; margin-top: 6px;">
+            Guardar Cambios del Banner
           </button>
         </form>
       </div>
@@ -1280,13 +1365,61 @@ function renderPanelPhotos() {
   `;
 }
 
+window.setSplashPreset = (url) => {
+  AppState.salon.splashHero = url;
+  const input = document.getElementById('splash-hero-input');
+  if (input) input.value = url;
+  showToast('🖼️ Foto de muestra seleccionada');
+  renderApp();
+};
+
+window.setBannerPreset = (url) => {
+  AppState.salon.bannerImage = url;
+  const input = document.getElementById('banner-img-input');
+  if (input) input.value = url;
+  showToast('🖼️ Foto de banner seleccionada');
+  renderApp();
+};
+
+window.handleUploadSplashPhoto = async (e) => {
+  const file = e.target.files && e.target.files[0];
+  if (!file) return;
+  showToast('⏳ Optimizando y subiendo foto...');
+  try {
+    const dataUrl = await compressAndReadImage(file, 1080, 0.86);
+    AppState.salon.splashHero = dataUrl;
+    await DataStore.set('salon', 'config', AppState.salon);
+    showToast('📸 ¡Foto de portada actualizada desde tu celular!');
+    renderApp();
+  } catch (err) {
+    console.error(err);
+    showToast('⚠️ No se pudo procesar la foto');
+  }
+};
+
+window.handleUploadBannerPhoto = async (e) => {
+  const file = e.target.files && e.target.files[0];
+  if (!file) return;
+  showToast('⏳ Optimizando foto del banner...');
+  try {
+    const dataUrl = await compressAndReadImage(file, 800, 0.86);
+    AppState.salon.bannerImage = dataUrl;
+    await DataStore.set('salon', 'config', AppState.salon);
+    showToast('📸 ¡Foto de banner actualizada desde tu celular!');
+    renderApp();
+  } catch (err) {
+    console.error(err);
+    showToast('⚠️ No se pudo procesar la foto');
+  }
+};
+
 window.handleSaveSplashContent = async (e) => {
   e.preventDefault();
   AppState.salon.splashTitle = document.getElementById('splash-title-input')?.value.trim();
   AppState.salon.splashSubtitle = document.getElementById('splash-sub-input')?.value.trim();
-  AppState.salon.splashHero = document.getElementById('splash-hero-input')?.value.trim();
+  AppState.salon.splashHero = document.getElementById('splash-hero-input')?.value.trim() || AppState.salon.splashHero;
   await DataStore.set('salon', 'config', AppState.salon);
-  showToast('✅ Textos de portada actualizados');
+  showToast('✅ Textos y foto de portada guardados');
   renderApp();
 };
 
@@ -1295,9 +1428,9 @@ window.handleSaveBannerContent = async (e) => {
   AppState.salon.bannerBadge = document.getElementById('banner-badge-input')?.value.trim();
   AppState.salon.bannerTitle = document.getElementById('banner-title-input')?.value.trim();
   AppState.salon.bannerSubtitle = document.getElementById('banner-subtitle-input')?.value.trim();
-  AppState.salon.bannerImage = document.getElementById('banner-img-input')?.value.trim();
+  AppState.salon.bannerImage = document.getElementById('banner-img-input')?.value.trim() || AppState.salon.bannerImage;
   await DataStore.set('salon', 'config', AppState.salon);
-  showToast('✅ Banner promocional actualizado');
+  showToast('✅ Banner promocional guardado');
   renderApp();
 };
 
