@@ -71,6 +71,9 @@ const AppState = {
   isManualApptOpen: false,
   isBlockModalOpen: false,
   blockedSlots: [],
+  reschedulingApptId: null,
+  rescheduleDate: '',
+  rescheduleSlot: '',
 
   // Estado temporal de edición de servicio en el Panel
   editingServiceId: null,
@@ -1213,6 +1216,15 @@ function renderPanelAgenda() {
                     💬 WhatsApp
                   </button>
                   ${
+                    appt.status !== 'completed' && appt.status !== 'cancelled'
+                      ? `
+                    <button type="button" class="btn-agenda-action" style="background: rgba(0,0,0,0.05); color: var(--text-main);" onclick="window.handleOpenRescheduleModal('${appt.id}')">
+                      📅 Reprogramar
+                    </button>
+                  `
+                      : ''
+                  }
+                  ${
                     appt.status !== 'cancelled'
                       ? `
                     <button type="button" class="btn-agenda-action danger" onclick="window.handleCancelAppt('${appt.id}', '${appt.clientName}')">
@@ -1222,6 +1234,41 @@ function renderPanelAgenda() {
                       : ''
                   }
                 </div>
+
+                ${AppState.reschedulingApptId === appt.id ? `
+                  <div class="reschedule-modal-card" style="margin-top: 10px; padding: 12px; background: var(--accent-soft); border: 1.5px solid var(--accent-primary); border-radius: 14px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                      <strong style="font-size: 13px; color: var(--text-main);">📅 Reprogramar Turno de ${appt.clientName}</strong>
+                      <button type="button" style="background: none; border: none; font-size: 14px; cursor: pointer; color: var(--text-muted);" onclick="window.handleCloseRescheduleModal()">✕</button>
+                    </div>
+                    <p style="font-size: 11px; color: var(--text-muted); margin-bottom: 8px;">Seleccioná la nueva fecha y horario:</p>
+                    <div style="display: flex; gap: 8px; margin-bottom: 8px;">
+                      <input type="date" min="${getTodayDateStr()}" value="${AppState.rescheduleDate || appt.date}" onchange="window.handleRescheduleDateChange(this.value)" style="flex: 1; padding: 7px 10px; border-radius: 8px; border: 1px solid rgba(0,0,0,0.12); font-size: 12px; background: var(--card-bg); color: var(--text-main);" />
+                    </div>
+                    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 10px;">
+                      ${SALON_SLOTS.map((slot) => {
+                        const targetDate = AppState.rescheduleDate || appt.date;
+                        const isOccupied = isSlotOccupied(targetDate, slot);
+                        const isOriginalSlot = targetDate === appt.date && slot === appt.slot;
+                        const isSelected = AppState.rescheduleSlot === slot;
+                        const disabled = isOccupied && !isOriginalSlot;
+                        return `
+                          <button type="button" style="padding: 6px 2px; font-size: 11px; font-weight: 700; border-radius: 6px; border: 1.5px solid ${isSelected ? 'var(--accent-primary)' : 'rgba(0,0,0,0.08)'}; background: ${isSelected ? 'var(--accent-primary)' : disabled ? 'rgba(0,0,0,0.04)' : 'var(--card-bg)'}; color: ${isSelected ? '#fff' : disabled ? 'var(--text-muted)' : 'var(--text-main)'}; cursor: ${disabled ? 'not-allowed' : 'pointer'};" ${disabled ? 'disabled' : ''} onclick="window.handleRescheduleSlotSelect('${slot}')">
+                            ${slot}
+                          </button>
+                        `;
+                      }).join('')}
+                    </div>
+                    <div style="display: flex; gap: 6px;">
+                      <button type="button" class="btn-primary-action" style="flex: 1; padding: 8px; font-size: 11px; white-space: nowrap;" onclick="window.handleConfirmReschedule('${appt.id}', true)">
+                        💾 Guardar y Avisar WhatsApp
+                      </button>
+                      <button type="button" class="btn-secondary-action" style="padding: 8px 10px; font-size: 11px;" onclick="window.handleConfirmReschedule('${appt.id}', false)">
+                        Solo Guardar
+                      </button>
+                    </div>
+                  </div>
+                ` : ''}
               </div>
             `;
                   })
@@ -3263,5 +3310,93 @@ window.handleDeleteAddon = async (addonId, addonName) => {
   AppState.addons = (AppState.addons || []).filter((a) => a.id !== addonId);
   await DataStore.remove('addons', addonId);
   showToast(`🗑️ Adicional "${addonName}" eliminado`);
+  renderApp();
+};
+
+window.handleOpenRescheduleModal = (apptId) => {
+  const appt = (AppState.appointments || []).find((a) => a.id === apptId);
+  if (!appt) return;
+  AppState.reschedulingApptId = apptId;
+  AppState.rescheduleDate = appt.date;
+  AppState.rescheduleSlot = appt.slot;
+  renderApp();
+};
+
+window.handleCloseRescheduleModal = () => {
+  AppState.reschedulingApptId = null;
+  AppState.rescheduleDate = '';
+  AppState.rescheduleSlot = '';
+  renderApp();
+};
+
+window.handleRescheduleDateChange = (newDate) => {
+  AppState.rescheduleDate = newDate;
+  renderApp();
+};
+
+window.handleRescheduleSlotSelect = (slot) => {
+  AppState.rescheduleSlot = slot;
+  renderApp();
+};
+
+window.handleConfirmReschedule = async (apptId, notifyWa) => {
+  const appt = (AppState.appointments || []).find((a) => a.id === apptId);
+  if (!appt) return;
+
+  const newDate = AppState.rescheduleDate || appt.date;
+  const newSlot = AppState.rescheduleSlot || appt.slot;
+
+  if (!newDate || !newSlot) {
+    showToast('⚠️ Por favor seleccioná fecha y horario');
+    return;
+  }
+
+  // Verificar si el horario nuevo está ocupado por otro turno
+  const isOccupied = (AppState.appointments || []).some(
+    (a) => a.id !== apptId && a.date === newDate && a.slot === newSlot && a.status !== 'cancelled'
+  );
+  if (isOccupied) {
+    showToast('⚠️ Ese horario ya está ocupado. Elegí otro.');
+    return;
+  }
+
+  const oldDate = appt.date;
+  const oldSlot = appt.slot;
+
+  appt.date = newDate;
+  appt.slot = newSlot;
+
+  await DataStore.set('appointments', apptId, appt);
+
+  // Actualizar historial de la clienta
+  if (appt.clientId) {
+    const client = (AppState.clients || []).find((c) => c.id === appt.clientId);
+    if (client && client.history) {
+      const histItem = client.history.find((h) => h.apptId === apptId);
+      if (histItem) {
+        histItem.date = newDate;
+        histItem.slot = newSlot;
+        await DataStore.set('clients', client.id, client);
+      }
+    }
+  }
+
+  showToast(`✅ Turno reprogramado para el ${formatDateDisplay(newDate)} a las ${newSlot} hs`);
+  AppState.reschedulingApptId = null;
+
+  if (notifyWa && appt.clientPhone) {
+    const cleanPhone = (appt.clientPhone || '').replace(/\D/g, '');
+    const dateFormatted = formatDateDisplay(newDate);
+    const msg =
+      `¡Hola ${appt.clientName}! Te escribo de ${AppState.salon.name || 'el Salón'}:\n\n` +
+      `📅 Tu turno para *${appt.serviceName}* ha sido reprogramado con éxito:\n\n` +
+      `✨ *Nueva Fecha:* ${dateFormatted}\n` +
+      `⏰ *Nuevo Horario:* ${newSlot} hs\n\n` +
+      `¡Te esperamos! Cualquier consulta avisanos.`;
+
+    const url = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(msg)}`;
+    window.open(url, '_blank');
+  }
+
   renderApp();
 };
