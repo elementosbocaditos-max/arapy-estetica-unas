@@ -4,6 +4,87 @@
 // ============================================================================
 import { initFirebase, DataStore } from './firebase-config.js';
 
+
+// ============================================================================
+// VIDRIERAS & CARTILLAS DEMO (100% EDITABLES - SE BORRAN AL CARGAR INFORMACIÓN REAL)
+// ============================================================================
+const DEMO_SHOWCASE = {
+  salon: {
+    name: 'Maison de Beauté',
+    tagline: 'Uñas de Autor & Haute Coiffure',
+    address: 'Av. Alvear 1850, Local 4',
+    phone: '5491123456789',
+    alias: 'MAISON.BEAUTE.MP',
+    aliasHolder: 'Maison Studio SRL',
+    depositPercent: 50,
+    themeColor: 'champagne',
+    splashTitle: "L'Art de la Beauté,",
+    splashSubtitle: 'Uñas & Peluquería de Autor',
+    splashHero: './assets/splash-hero.jpg',
+    bannerBadge: 'Collection Privée',
+    bannerTitle: '20% OFF en Servicios Seleccionados',
+    bannerSubtitle: 'Válido agendando tu turno online',
+    bannerImage: './assets/service-hair-balayage.jpg',
+    isDemo: true
+  },
+  categories: [
+    { id: 'demo_cat_1', name: 'Uñas & Manicuría', isDemo: true },
+    { id: 'demo_cat_2', name: 'Peluquería & Color', isDemo: true },
+    { id: 'demo_cat_3', name: 'Tratamientos Spa', isDemo: true }
+  ],
+  services: [
+    {
+      id: 'demo_srv_1',
+      name: 'Kapping Gel & Esmaltado Semipermanente',
+      categoryId: 'demo_cat_1',
+      price: 18000,
+      duration: 60,
+      deposit: 9000,
+      image: './assets/studio-nails.jpg',
+      active: true,
+      isDemo: true
+    },
+    {
+      id: 'demo_srv_2',
+      name: 'Uñas Esculpidas Soft Gel con Nail Art',
+      categoryId: 'demo_cat_1',
+      price: 24000,
+      duration: 90,
+      deposit: 12000,
+      image: './assets/inspo-rose-french.jpg',
+      active: true,
+      isDemo: true
+    },
+    {
+      id: 'demo_srv_3',
+      name: 'Balayage Iluminación & Baño de Luz',
+      categoryId: 'demo_cat_2',
+      price: 55000,
+      duration: 180,
+      deposit: 27500,
+      image: './assets/service-hair-balayage.jpg',
+      active: true,
+      isDemo: true
+    },
+    {
+      id: 'demo_srv_4',
+      name: 'Corte Femenino de Autor & Brushing',
+      categoryId: 'demo_cat_2',
+      price: 22000,
+      duration: 60,
+      deposit: 11000,
+      image: './assets/service-hair-cut.jpg',
+      active: true,
+      isDemo: true
+    }
+  ],
+  addons: [
+    { id: 'demo_addon_1', name: 'Retiro de Esmaltado Anterior', price: 2000, duration: 15, active: true, isDemo: true },
+    { id: 'demo_addon_2', name: 'Nail Art / Francesitas por uña', price: 2500, duration: 15, active: true, isDemo: true },
+    { id: 'demo_addon_3', name: 'Nutrición Capilar Exprés / Ampolla', price: 4000, duration: 20, active: true, isDemo: true }
+  ]
+};
+
 // Estado global de la aplicación en memoria (sincronizado con DataStore / Firestore)
 const AppState = {
   activeScreen: 'splash',
@@ -79,6 +160,7 @@ const AppState = {
 
   // Estado temporal de edición de servicio en el Panel
   editingServiceId: null,
+  viewingServiceDetailId: null,
 
   // Búsqueda y gestión de clientas (Paso 4)
   clientSearchQuery: '',
@@ -291,38 +373,59 @@ window.handlePinDelete = handlePinDelete;
 // ----------------------------------------------------------------------------
 function renderSplash() {
   return `
-    <div class="screen-viewport no-bottom-bar splash-container">
-      <!-- Sección Superior: Foto Nítida y Luminosa en Primer Plano (Sin filtros oscuros) -->
-      <div class="splash-photo-hero">
+    <div class="screen-viewport no-bottom-bar splash-container" style="background: var(--ivory-bg);">
+      <!-- Foto LUMINOSA de Luz Natural en Primer Plano con Movimiento Suave Ken-Burns -->
+      <div class="splash-photo-hero" style="height: 56dvh; min-height: 370px;">
         <img
           src="${AppState.salon.splashHero || './assets/splash-hero.jpg'}"
-          alt="Salón de Belleza"
-          class="splash-hero-img"
+          alt="Maison de Beauté"
+          class="splash-hero-img-luminous"
           onerror="this.src='./assets/splash-hero.jpg'"
         />
         <div class="splash-top-bar">
-          <span class="splash-brand-badge">${AppState.salon.name || 'Beauty Studio'}</span>
+          <span class="gold-badge">✦ ${AppState.salon.name || 'Maison de Beauté'}</span>
+          <button type="button" class="mirrored-icon-badge" onclick="navigateTo('panel')" title="Acceso Dueño" style="width: 36px; height: 36px; border-radius: 50%;">
+            ${Icons.lock}
+          </button>
         </div>
-        <div class="splash-hero-bottom-fade"></div>
+        <div style="position: absolute; bottom: 0; left: 0; right: 0; height: 85px; background: linear-gradient(180deg, transparent 0%, rgba(250, 247, 242, 0.7) 50%, var(--ivory-bg) 100%); pointer-events: none;"></div>
       </div>
 
-      <!-- Sección Inferior: Textos y Botones sobre Fondo Limpio Negro Elegante -->
-      <div class="splash-bottom-content">
-        <h1 class="splash-title">
-          ${AppState.salon.splashTitle || 'Look Good,'}<br />
-          <span class="accent">${AppState.salon.splashSubtitle || 'Feel Beautiful'}</span>
-        </h1>
-        <p class="splash-subtitle">${AppState.salon.tagline || 'Beauty And Style, Designed Just For You'}</p>
+      <!-- Tarjeta Flotante con Tipografía de Perfumería Francesa y Líneas Doradas -->
+      <div class="splash-bottom-content" style="background: var(--ivory-bg); padding: 12px 22px 28px; margin-top: -24px; position: relative; z-index: 10;">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+          <span class="parfumerie-kicker">★ 4.9 • EXPÉRIENCE EXCLUSIVE</span>
+          <span style="font-size: 10.5px; font-weight: 700; color: #16a34a; display: flex; align-items: center;">
+            <span class="live-pulse-dot"></span> Turnos Disponibles
+          </span>
+        </div>
 
-        <button type="button" class="splash-btn-primary" onclick="navigateTo('services')">
-          <span>Reservar Turno</span>
-          <span class="splash-btn-circle">→</span>
+        <h1 class="parfumerie-headline" style="margin-bottom: 6px;">
+          ${AppState.salon.splashTitle || "L'Art de la Beauté,"}<br />
+          <span class="parfumerie-italic">${AppState.salon.splashSubtitle || 'Uñas & Peluquería de Autor'}</span>
+        </h1>
+        <p class="parfumerie-sub" style="margin-bottom: 18px;">
+          ${AppState.salon.tagline || 'Rituels de beauté exclusifs • Soins signature & stylisme sur mesure'}
+        </p>
+
+        <!-- Botón Dorado de Alta Costura con Haz de Luz en Movimiento -->
+        <button type="button" class="splash-btn-primary btn-gold-shimmer" onclick="navigateTo('services')">
+          <span>Reservar Cita Online</span>
+          <span class="splash-btn-circle" style="color: var(--gold-dark);">→</span>
         </button>
 
         <button type="button" class="splash-btn-secondary" onclick="navigateTo('home')">
-          <span>Conocer Servicios & Salón</span>
+          <span>Découvrir la Maison & Services</span>
           <span style="font-size: 11px;">▼</span>
         </button>
+
+        <div style="display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 14px; padding-top: 10px; border-top: 1px dashed var(--gold-line); font-size: 10.5px; color: var(--accent-dark); font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase;">
+          <span>✦ Insumos Esterilizados</span>
+          <span>•</span>
+          <span>✦ Puntualidad 100%</span>
+          <span>•</span>
+          <span>✦ Seña Segura</span>
+        </div>
       </div>
     </div>
   `;
@@ -339,44 +442,69 @@ function renderHome() {
 
   return `
     <div class="screen-viewport">
-      <header class="app-header">
+      <header class="app-header" style="border-bottom: 1px solid var(--gold-line);">
         <div class="app-header-left">
+          <div class="mirrored-icon-badge" style="width: 38px; height: 38px;">
+            ${Icons.sparkles}
+          </div>
           <div>
-            <span style="font-size: 11px; font-weight: 700; color: var(--accent-primary); text-transform: uppercase; letter-spacing: 0.06em;">Bienvenida</span>
-            <h2 class="app-header-title">${AppState.salon.name || 'Beauty Studio'}</h2>
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <span class="parfumerie-kicker">MAISON DE BEAUTÉ</span>
+              <span style="font-size: 9.5px; color: #16a34a; font-weight: 800; display: flex; align-items: center;">
+                <span class="live-pulse-dot"></span> Abierto Hoy
+              </span>
+            </div>
+            <h2 class="app-header-title" style="font-family: var(--font-parfumerie); font-size: 20px; font-weight: 600;">${AppState.salon.name || 'Beauty Studio'}</h2>
           </div>
         </div>
-        <button type="button" class="header-back-btn" onclick="navigateTo('panel')" title="Panel del Dueño">
+        <button type="button" class="mirrored-icon-badge" onclick="navigateTo('panel')" title="Acceso Dueño" style="width: 38px; height: 38px; cursor: pointer; border-radius: 50%;">
           ${Icons.lock}
         </button>
       </header>
 
+      <!-- Cinta Animada de Perfumería Francesa (Recurso de Movimiento) -->
+      <div class="parfumerie-marquee">
+        <div class="parfumerie-marquee-track">
+          <span class="parfumerie-marquee-item">✦ HAUTE COIFFURE</span>
+          <span class="parfumerie-marquee-item">✦ ONGLERIE D'ART</span>
+          <span class="parfumerie-marquee-item">✦ SOINS SIGNATURE</span>
+          <span class="parfumerie-marquee-item">✦ NAIL ART FRANÇAIS</span>
+          <span class="parfumerie-marquee-item">✦ BALAYAGE DE LUXE</span>
+          <span class="parfumerie-marquee-item">✦ COLORATION EXPERTE</span>
+          <span class="parfumerie-marquee-item">✦ HAUTE COIFFURE</span>
+          <span class="parfumerie-marquee-item">✦ ONGLERIE D'ART</span>
+          <span class="parfumerie-marquee-item">✦ SOINS SIGNATURE</span>
+        </div>
+      </div>
+
       <div class="home-content">
-        <!-- Buscador Rápido -->
-        <div class="home-search-bar" onclick="navigateTo('services')">
-          <span style="color: var(--text-muted); display: flex;">${Icons.search}</span>
-          <span class="search-placeholder">Buscar servicios o tratamientos...</span>
-          <div class="search-btn-icon">${Icons.scissors}</div>
+        <!-- Buscador Rápido con Líneas Doradas e Ícono Espejado -->
+        <div class="home-search-bar gold-card" onclick="navigateTo('services')">
+          <span style="color: var(--accent-dark); display: flex;">${Icons.search}</span>
+          <span class="search-placeholder">Buscar uñas esculpidas, balayage, pestañas...</span>
+          <div class="mirrored-icon-badge" style="width: 28px; height: 28px; border-radius: 8px;">
+            ${Icons.scissors}
+          </div>
         </div>
 
-        <!-- Banner Promocional con Foto y Letras Integradas (Estilo pasted.png) -->
-        <div class="promo-banner-card" onclick="navigateTo('services')">
+        <!-- Banner Promocional con Líneas Doradas (Estilo Alta Costura) -->
+        <div class="promo-banner-card gold-card" onclick="navigateTo('services')">
           <div class="promo-banner-text">
-            <span class="promo-badge">${AppState.salon.bannerBadge || 'Promoción'}</span>
-            <h3 class="promo-title">${AppState.salon.bannerTitle || '20% OFF en Servicios'}</h3>
+            <span class="gold-badge" style="padding: 3px 10px; font-size: 9.5px;">${AppState.salon.bannerBadge || 'Collection Privée'}</span>
+            <h3 class="promo-title" style="font-family: var(--font-parfumerie); font-size: 18px; font-weight: 600;">${AppState.salon.bannerTitle || '20% OFF en Servicios'}</h3>
             <p class="promo-subtitle">${AppState.salon.bannerSubtitle || 'Válido agendando tu turno online'}</p>
-            <button type="button" class="promo-btn">
+            <button type="button" class="promo-btn btn-gold-shimmer" style="margin-top: 8px;">
               <span>Agendar Ahora</span>
               <span>→</span>
             </button>
           </div>
-          <div class="promo-banner-media">
+          <div class="promo-banner-media" style="border: 1px solid var(--gold-line);">
             <img src="${AppState.salon.bannerImage || './assets/service-hair-balayage.jpg'}" alt="Promoción" class="promo-img" onerror="this.src='./assets/studio-nails.jpg'" />
           </div>
         </div>
 
         <!-- Próximo Turno o Estado de Reserva -->
-        <div class="next-appointment-card">
+        <div class="next-appointment-card gold-card">
           <div style="display: flex; align-items: center; justify-content: space-between;">
             <span class="card-badge ${hasAppt ? 'confirmed' : ''}">
               ${hasAppt ? 'Turno en Proceso' : 'Tu Espacio de Belleza'}
@@ -409,7 +537,7 @@ function renderHome() {
               .map((s) => {
                 const cat = AppState.categories.find((c) => c.id === s.categoryId);
                 return `
-                <div class="popular-service-pill-card" onclick="window.selectServiceAndBook('${s.id}')">
+                <div class="popular-service-pill-card gold-card" onclick="window.selectServiceAndBook('${s.id}')">
                   <img src="${s.image || './assets/studio-nails.jpg'}" alt="${s.name}" class="popular-srv-img" onerror="this.src='./assets/studio-nails.jpg'" />
                   <div class="popular-srv-info">
                     <h4>${s.name}</h4>
@@ -428,16 +556,16 @@ function renderHome() {
             : ''
         }
 
-        <!-- Accesos directos -->
+        <!-- Accesos directos con Íconos Espejados y Líneas Doradas -->
         <div class="quick-actions-grid">
-          <div class="quick-action-tile" onclick="navigateTo('services')">
-            <div class="tile-icon">${Icons.scissors}</div>
-            <strong>Todos los Trabajos</strong>
+          <div class="quick-action-tile gold-card" onclick="navigateTo('services')">
+            <div class="mirrored-icon-badge">${Icons.scissors}</div>
+            <strong style="font-family: var(--font-parfumerie); font-size: 14px;">Tous les Soins</strong>
             <span>${AppState.services.length} servicios en catálogo</span>
           </div>
-          <div class="quick-action-tile" onclick="navigateTo('inspo')">
-            <div class="tile-icon">${Icons.sparkles}</div>
-            <strong>Inspiración & Fotos</strong>
+          <div class="quick-action-tile gold-card" onclick="navigateTo('inspo')">
+            <div class="mirrored-icon-badge">${Icons.sparkles}</div>
+            <strong style="font-family: var(--font-parfumerie); font-size: 14px;">Galerie & Looks</strong>
             <span>${AppState.inspo.length} fotos reales</span>
           </div>
         </div>
@@ -527,17 +655,17 @@ function renderServices() {
                 .map((s) => {
                   const cat = categories.find((c) => c.id === s.categoryId);
                   return `
-            <div class="service-card">
-              <img src="${s.image || './assets/studio-nails.jpg'}" alt="${s.name}" class="service-card-photo" onerror="this.src='./assets/studio-nails.jpg'" />
+            <div class="service-card gold-card">
+              <img src="${s.image || './assets/studio-nails.jpg'}" alt="${s.name}" class="service-card-photo" style="border: 1px solid var(--gold-line);" onerror="this.src='./assets/studio-nails.jpg'" />
               <div class="service-card-body">
-                <h3>${s.name}</h3>
+                <h3 style="font-family: var(--font-parfumerie); font-size: 15px;">${s.name}</h3>
                 <div class="service-meta">
-                  <span class="duration-badge">⏱️ ${s.duration || 60}m</span>
-                  <span style="font-size: 11px; color: var(--text-muted);">${cat ? cat.name : 'Servicio'}</span>
-                  <span class="service-price">$${Number(s.price || 0).toLocaleString('es-AR')}</span>
+                  <span class="duration-badge" style="background: var(--accent-soft); color: var(--accent-dark); border: 1px solid var(--gold-line);">⏱️ ${s.duration || 60}m</span>
+                  <span style="font-size: 11px; color: var(--text-muted); font-family: var(--font-parfumerie);">${cat ? cat.name : 'Soin'}</span>
+                  <span class="service-price" style="color: var(--accent-dark);">${Number(s.price || 0).toLocaleString('es-AR')}</span>
                 </div>
               </div>
-              <button type="button" class="btn-book-service" onclick="window.selectServiceAndBook('${s.id}')">
+              <button type="button" class="btn-book-service btn-gold-shimmer" onclick="window.selectServiceAndBook('${s.id}')">
                 Reservar
               </button>
             </div>
@@ -1989,8 +2117,15 @@ window.handleCreateCategory = async () => {
     showToast('Ingresá el nombre de la categoría');
     return;
   }
+  // Auto-limpieza de Categorías Demo al agregar la primera categoría real
+  const demoCats = (AppState.categories || []).filter((c) => c.isDemo === true);
+  for (const dc of demoCats) {
+    await DataStore.remove('categories', dc.id);
+  }
+  AppState.categories = AppState.categories.filter((c) => c.isDemo !== true);
+
   const id = `cat_${Date.now()}`;
-  const newCat = { id, name };
+  const newCat = { id, name, isDemo: false };
   AppState.categories.push(newCat);
   await DataStore.set('categories', id, newCat);
   input.value = '';
@@ -3328,6 +3463,22 @@ async function startApp() {
   AppState.categories = await DataStore.getAll('categories');
   AppState.services = await DataStore.getAll('services');
   AppState.addons = await DataStore.getAll('addons');
+
+  // Si no hay datos, cargar la Vidriera Demo inicial (que se auto-reemplazará al cargar datos reales)
+  if (AppState.categories.length === 0 && AppState.services.length === 0) {
+    for (const c of DEMO_SHOWCASE.categories) {
+      await DataStore.set('categories', c.id, c);
+    }
+    for (const s of DEMO_SHOWCASE.services) {
+      await DataStore.set('services', s.id, s);
+    }
+    for (const a of DEMO_SHOWCASE.addons) {
+      await DataStore.set('addons', a.id, a);
+    }
+    AppState.categories = [...DEMO_SHOWCASE.categories];
+    AppState.services = [...DEMO_SHOWCASE.services];
+    AppState.addons = [...DEMO_SHOWCASE.addons];
+  }
   if (!AppState.addons || AppState.addons.length === 0) {
     const DEFAULT_ADDONS = [
       { id: 'addon_1', name: 'Retiro de Esmaltado Anterior', price: 1500, duration: 15, active: true },
@@ -3383,8 +3534,15 @@ window.handleCreateAddon = async (e) => {
   const duration = Number(document.getElementById('addon-dur-input')?.value) || 15;
   if (!name) return;
 
+  // Auto-limpieza de Adicionales Demo al agregar el primer adicional real
+  const demoAddons = (AppState.addons || []).filter((a) => a.isDemo === true);
+  for (const da of demoAddons) {
+    await DataStore.remove('addons', da.id);
+  }
+  AppState.addons = AppState.addons.filter((a) => a.isDemo !== true);
+
   const id = 'addon_' + Date.now();
-  const newAddon = { id, name, price, duration, active: true };
+  const newAddon = { id, name, price, duration, active: true, isDemo: false };
   AppState.addons.push(newAddon);
   await DataStore.set('addons', id, newAddon);
   showToast(`✨ Adicional "${name}" agregado`);
@@ -3501,4 +3659,52 @@ window.closeBookingSuccessModal = () => {
   AppState.isBookingSuccessModalOpen = false;
   AppState.lastBookedAppt = null;
   navigateTo('home');
+};
+
+// Controladores de Vidriera Demo
+window.handleLoadDemoShowcase = async () => {
+  showToast('⏳ Cargando vidriera y cartillas de demostración...');
+  
+  for (const c of DEMO_SHOWCASE.categories) {
+    await DataStore.set('categories', c.id, c);
+  }
+  for (const s of DEMO_SHOWCASE.services) {
+    await DataStore.set('services', s.id, s);
+  }
+  for (const a of DEMO_SHOWCASE.addons) {
+    await DataStore.set('addons', a.id, a);
+  }
+
+  AppState.salon = { ...AppState.salon, ...DEMO_SHOWCASE.salon };
+  await DataStore.set('salon', 'config', AppState.salon);
+
+  AppState.categories = [...DEMO_SHOWCASE.categories];
+  AppState.services = [...DEMO_SHOWCASE.services];
+  AppState.addons = [...DEMO_SHOWCASE.addons];
+
+  showToast('✨ Vidriera Demo cargada con éxito');
+  renderApp();
+};
+
+window.handleClearAllDemoData = async () => {
+  const confirmClear = window.confirm('¿Deseas vaciar todas las cartillas demo para dejar el salón completamente en blanco para un cliente real?');
+  if (!confirmClear) return;
+
+  showToast('⏳ Vaciando cartillas demo...');
+  for (const s of AppState.services) {
+    await DataStore.remove('services', s.id);
+  }
+  for (const c of AppState.categories) {
+    await DataStore.remove('categories', c.id);
+  }
+  for (const a of AppState.addons) {
+    await DataStore.remove('addons', a.id);
+  }
+
+  AppState.services = [];
+  AppState.categories = [];
+  AppState.addons = [];
+
+  showToast('🗑️ Salón en blanco: Listo para cargar datos reales');
+  renderApp();
 };
