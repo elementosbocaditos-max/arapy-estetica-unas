@@ -2436,3 +2436,41 @@ body.theme-noir .booking-success-modal {
   opacity: 0.95;
   transform: translateY(-1px);
 }
+
+/* ============================================================================
+   MÓDULO 5: LOYALTY & VIP BADGES
+   ============================================================================ */
+.client-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 2.5px 7px;
+  border-radius: 999px;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
+.client-badge.vip {
+  background: linear-gradient(135deg, #fef08a, #fde047);
+  color: #854d0e;
+  box-shadow: 0 1px 4px rgba(234, 179, 8, 0.25);
+}
+
+.client-badge.frequent {
+  background: var(--accent-soft);
+  color: var(--accent-dark);
+}
+
+.client-badge.new {
+  background: rgba(0, 0, 0, 0.06);
+  color: var(--text-muted);
+}
+
+body.theme-noir .client-badge.new {
+  background: #2b2830;
+  color: #94a3b8;
+}

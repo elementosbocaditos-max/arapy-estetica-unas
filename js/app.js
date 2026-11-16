@@ -1154,6 +1154,13 @@ function renderPanelAgenda() {
                 <div>
                   <div class="agenda-client-name">
                     <span>${appt.clientName}</span>
+                    ${(() => {
+                      const clientObj = (AppState.clients || []).find(c => (appt.clientId && c.id === appt.clientId) || (appt.clientPhone && c.phone === appt.clientPhone));
+                      const visitCount = clientObj ? (clientObj.history || []).length : 1;
+                      if (visitCount >= 5) return '<span class="client-badge vip">⭐ VIP</span>';
+                      if (visitCount >= 2) return '<span class="client-badge frequent">✨ Frecuente</span>';
+                      return '<span class="client-badge new">🌱 Nueva</span>';
+                    })()}
                     ${
                       appt.clientPhone
                         ? `
@@ -2381,13 +2388,23 @@ function renderPanelClients() {
                 const historyCount = (c.history || []).length;
                 const totalSpent = Number(c.totalSpent || 0);
 
+                let loyaltyBadge = '<span class="client-badge new">🌱 Nueva</span>';
+                if (historyCount >= 5 || totalSpent >= 100000) {
+                  loyaltyBadge = '<span class="client-badge vip">⭐ VIP</span>';
+                } else if (historyCount >= 2) {
+                  loyaltyBadge = '<span class="client-badge frequent">✨ Frecuente</span>';
+                }
+
                 return `
               <div class="client-card">
                 <div class="client-card-top">
                   <div class="client-avatar-row">
                     <div class="client-avatar">${initials}</div>
                     <div>
-                      <div class="client-name-title">${c.name}</div>
+                      <div class="client-name-title">
+                        <span>${c.name}</span>
+                        ${loyaltyBadge}
+                      </div>
                       <div class="client-phone-sub">📱 ${c.phone || 'Sin celular'}</div>
                     </div>
                   </div>
