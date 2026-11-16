@@ -54,6 +54,8 @@ const AppState = {
   // Reserva de Clienta en curso
   bookingDate: '', // 'YYYY-MM-DD'
   bookingSlot: '', // '14:00'
+  lastBookedAppt: null,
+  isBookingSuccessModalOpen: false,
   bookingDraft: {
     serviceId: null,
     inspoId: null,
@@ -3137,6 +3139,8 @@ window.confirmBookingWhatsapp = async () => {
 
   window.open(url, '_blank');
   showToast('🎉 ¡Turno agendado con éxito! Abriendo WhatsApp...');
+  AppState.lastBookedAppt = newAppt;
+  AppState.isBookingSuccessModalOpen = true;
 
   // Reset del slot elegido para la siguiente reserva
   AppState.bookingSlot = '';
@@ -3146,6 +3150,79 @@ window.confirmBookingWhatsapp = async () => {
 // ----------------------------------------------------------------------------
 // RENDERIZADOR MAESTRO DE LA APLICACIÓN
 // ----------------------------------------------------------------------------
+
+function getGoogleCalendarUrl(appt) {
+  if (!appt || !appt.date || !appt.slot) return '#';
+  const salonName = AppState.salon.name || 'Salón de Belleza';
+  const title = `Turno en ${salonName}: ${appt.serviceName}`;
+  
+  // Formato fecha y hora: YYYYMMDDTHHmmss
+  const cleanDate = appt.date.replace(/-/g, '');
+  const [hours, mins] = appt.slot.split(':');
+  const duration = Number(appt.serviceDuration) || 60;
+  
+  const startH = hours.padStart(2, '0');
+  const startM = (mins || '00').padStart(2, '0');
+  
+  // Calcular hora de fin
+  const totalMin = parseInt(startH, 10) * 60 + parseInt(startM, 10) + duration;
+  const endH = String(Math.floor(totalMin / 60)).padStart(2, '0');
+  const endM = String(totalMin % 60).padStart(2, '0');
+  
+  const dates = `${cleanDate}T${startH}${startM}00/${cleanDate}T${endH}${endM}00`;
+  const location = AppState.salon.address || '';
+  const details = `Turno agendado en ${salonName}.\nServicio: ${appt.serviceName}\nDuración: ~${duration} min.\nSeña: ${Number(appt.depositAmount || 0).toLocaleString('es-AR')}\nAlias: ${AppState.salon.alias || ''}`;
+  
+  return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(title)}&dates=${dates}&details=${encodeURIComponent(details)}&location=${encodeURIComponent(location)}`;
+}
+
+function renderBookingSuccessModal() {
+  const appt = AppState.lastBookedAppt;
+  if (!appt) return '';
+
+  const gCalUrl = getGoogleCalendarUrl(appt);
+
+  return `
+    <div class="booking-success-overlay">
+      <div class="booking-success-modal">
+        <div class="success-icon-badge">✨</div>
+        <h3 style="font-size: 18px; font-weight: 800; color: var(--text-main); margin-bottom: 4px;">¡Turno Agendado con Éxito!</h3>
+        <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 14px;">
+          Tu solicitud fue enviada por WhatsApp a la dueña del salón para confirmar la seña.
+        </p>
+
+        <div class="success-summary-box">
+          <div style="font-size: 14px; font-weight: 800; color: var(--text-main); margin-bottom: 2px;">${appt.serviceName}</div>
+          <div style="font-size: 12px; color: var(--accent-dark); font-weight: 700; margin-bottom: 4px;">
+            📅 ${formatDateDisplay(appt.date)} • ⏰ ${appt.slot} hs (~${appt.serviceDuration || 60}m)
+          </div>
+          ${appt.addons && appt.addons.length > 0 ? `
+            <div style="font-size: 11px; color: var(--text-main); margin-bottom: 4px;">
+              ✨ Adicionales: <strong>${appt.addons.map(a => a.name).join(', ')}</strong>
+            </div>
+          ` : ''}
+          <div style="font-size: 11.5px; color: var(--text-muted); margin-top: 2px;">
+            📍 ${AppState.salon.address || 'Local del Salón'}
+          </div>
+          <div style="font-size: 11.5px; color: var(--text-muted); margin-top: 4px; padding-top: 4px; border-top: 1px dashed rgba(0,0,0,0.08);">
+            💳 Seña: <strong>${Number(appt.depositAmount).toLocaleString('es-AR')}</strong> (Alias: <code style="font-weight: 800; color: var(--accent-dark);">${AppState.salon.alias || 'TU.ALIAS.MP'}</code>)
+          </div>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 16px;">
+          <a href="${gCalUrl}" target="_blank" rel="noopener noreferrer" class="btn-google-calendar">
+            <span>📅</span>
+            <span>Agendar en Google Calendar</span>
+          </a>
+          <button type="button" class="btn-primary-action" style="padding: 12px; font-size: 13px;" onclick="window.closeBookingSuccessModal()">
+            Listo / Volver al Inicio
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 function renderApp() {
   const root = document.getElementById('app-root');
   if (!root) return;
@@ -3207,11 +3284,13 @@ function renderApp() {
     : '';
 
   const toastHtml = AppState.toastMessage ? `<div class="toast-msg">${AppState.toastMessage}</div>` : '';
+  const successModalHtml = AppState.isBookingSuccessModalOpen ? renderBookingSuccessModal() : '';
 
   root.innerHTML = `
     ${screenContent}
     ${bottomNavHtml}
     ${toastHtml}
+    ${successModalHtml}
   `;
 }
 
@@ -3399,4 +3478,10 @@ window.handleConfirmReschedule = async (apptId, notifyWa) => {
   }
 
   renderApp();
+};
+
+window.closeBookingSuccessModal = () => {
+  AppState.isBookingSuccessModalOpen = false;
+  AppState.lastBookedAppt = null;
+  navigateTo('home');
 };
