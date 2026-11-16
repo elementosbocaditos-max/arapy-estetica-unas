@@ -57,6 +57,8 @@ const AppState = {
   bookingDraft: {
     serviceId: null,
     inspoId: null,
+    inspoTitle: null,
+    inspoImage: null,
     date: null,
     slot: null,
     clientName: '',
@@ -606,9 +608,21 @@ function renderInspo() {
 }
 
 window.selectInspoAndBook = (inspoId, title) => {
+  const item = (AppState.inspo || []).find((i) => i.id === inspoId);
   AppState.bookingDraft.inspoId = inspoId;
-  showToast(`✨ Diseño seleccionado: ${title}`);
+  AppState.bookingDraft.inspoTitle = title;
+  AppState.bookingDraft.inspoImage = item ? item.image : null;
+
+  showToast(`✨ Look seleccionado: ${title}. Elegí el trabajo base:`);
   navigateTo('services');
+};
+
+window.clearBookingInspo = () => {
+  AppState.bookingDraft.inspoId = null;
+  AppState.bookingDraft.inspoTitle = null;
+  AppState.bookingDraft.inspoImage = null;
+  showToast('Look de referencia removido');
+  renderApp();
 };
 
 // ----------------------------------------------------------------------------
@@ -667,6 +681,19 @@ function renderBooking() {
                 Cambiar
               </button>
             </div>
+
+            ${AppState.bookingDraft.inspoTitle ? `
+              <div style="display: flex; align-items: center; justify-content: space-between; background: var(--accent-soft); border: 1.5px solid var(--accent-primary); border-radius: 12px; padding: 10px 12px; margin-top: 10px;">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                  <img src="${AppState.bookingDraft.inspoImage || './assets/studio-nails.jpg'}" alt="Inspo" style="width: 42px; height: 42px; border-radius: 8px; object-fit: cover;" onerror="this.src='./assets/studio-nails.jpg'" />
+                  <div>
+                    <span style="font-size: 10px; font-weight: 800; color: var(--accent-dark); text-transform: uppercase; letter-spacing: 0.05em;">💅 Look de Referencia Seleccionado</span>
+                    <div style="font-size: 12.5px; font-weight: 700; color: var(--text-main); line-height: 1.2;">${AppState.bookingDraft.inspoTitle}</div>
+                  </div>
+                </div>
+                <button type="button" style="background: none; border: none; font-size: 11px; color: var(--accent-dark); font-weight: 700; cursor: pointer; padding: 4px;" onclick="window.clearBookingInspo()">✕ Quitar</button>
+              </div>
+            ` : ''}
 
             <!-- Adicionales Opcionales (Upselling para aumentar ticket promedio) -->
             <div style="margin-top: 14px; border-top: 1px dashed rgba(0,0,0,0.08); padding-top: 12px;">
@@ -1142,6 +1169,12 @@ function renderPanelAgenda() {
                       ✨ Adicionales: ${appt.addons.map((a) => a.name).join(', ')}
                     </div>
                   ` : ''}
+                  ${appt.inspoTitle ? `
+                    <div style="display: flex; align-items: center; gap: 8px; margin-top: 5px; padding: 4px 8px; background: rgba(0,0,0,0.03); border-radius: 8px;">
+                      ${appt.inspoImage ? `<img src="${appt.inspoImage}" style="width: 26px; height: 26px; border-radius: 5px; object-fit: cover;" onerror="this.style.display='none'" />` : ''}
+                      <span style="font-size: 11px; color: var(--text-main); font-weight: 600;">💅 Look: <strong>${appt.inspoTitle}</strong></span>
+                    </div>
+                  ` : ''}
                 </div>
 
                 <div class="agenda-deposit-row">
@@ -1333,6 +1366,9 @@ window.selectBookingDate = (dateStr) => {
   AppState.bookingDate = dateStr;
   AppState.bookingSlot = '';
   AppState.bookingDraft.selectedAddonIds = [];
+  AppState.bookingDraft.inspoId = null;
+  AppState.bookingDraft.inspoTitle = null;
+  AppState.bookingDraft.inspoImage = null;
   renderApp();
 };
 
@@ -2978,6 +3014,8 @@ window.confirmBookingWhatsapp = async () => {
     serviceDuration: totalDuration,
     basePrice: Number(currentService.price) || 0,
     addons: selectedAddonsList.map((a) => ({ id: a.id, name: a.name, price: Number(a.price) || 0 })),
+    inspoTitle: AppState.bookingDraft.inspoTitle || null,
+    inspoImage: AppState.bookingDraft.inspoImage || null,
     date: AppState.bookingDate,
     slot: AppState.bookingSlot,
     status: 'pending',
@@ -3027,9 +3065,14 @@ window.confirmBookingWhatsapp = async () => {
     ? `\n➕ *Adicionales:* ${selectedAddonsList.map((a) => `${a.name} (+${Number(a.price).toLocaleString('es-AR')})`).join(', ')}`
     : '';
 
+  const inspoText = AppState.bookingDraft.inspoTitle
+    ? `💅 *Look de Referencia:* ${AppState.bookingDraft.inspoTitle}\n`
+    : '';
+
   const text =
     `¡Hola! Quiero confirmar mi turno en ${AppState.salon.name || 'el Salón'}:\n\n` +
     `✨ *Servicio:* ${currentService.name}\n` +
+    inspoText +
     (addonsText ? `${addonsText}\n` : '') +
     `📅 *Fecha:* ${dateFormatted}\n` +
     `⏰ *Horario:* ${AppState.bookingSlot} hs (~${totalDuration} min)\n` +
