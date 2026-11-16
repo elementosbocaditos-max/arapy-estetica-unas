@@ -36,6 +36,7 @@ const AppState = {
   // Colecciones (Inician limpias y vacías)
   categories: [],
   services: [],
+  addons: [],
   appointments: [],
   clients: [],
   finances: [],
@@ -59,7 +60,8 @@ const AppState = {
     date: null,
     slot: null,
     clientName: '',
-    clientPhone: ''
+    clientPhone: '',
+    selectedAddonIds: []
   },
 
   // Agenda del Salón
@@ -614,9 +616,17 @@ window.selectInspoAndBook = (inspoId, title) => {
 // ----------------------------------------------------------------------------
 function renderBooking() {
   const selectedService = AppState.services.find((s) => s.id === AppState.bookingDraft.serviceId);
+  const selectedAddonsList = (AppState.addons || []).filter((a) =>
+    (AppState.bookingDraft.selectedAddonIds || []).includes(a.id)
+  );
+  const addonsTotal = selectedAddonsList.reduce((acc, curr) => acc + Number(curr.price || 0), 0);
+  const addonsDuration = selectedAddonsList.reduce((acc, curr) => acc + Number(curr.duration || 0), 0);
+  const totalPrice = selectedService ? Number(selectedService.price || 0) + addonsTotal : 0;
+  const totalDuration = selectedService ? Number(selectedService.duration || 60) + addonsDuration : 0;
+
   const depositPercent = AppState.salon.depositPercent || 50;
   const depositAmount = selectedService
-    ? selectedService.deposit || Math.round((selectedService.price * depositPercent) / 100)
+    ? Math.round((totalPrice * depositPercent) / 100)
     : 0;
 
   const upcomingDays = getUpcomingDays(10);
@@ -649,13 +659,57 @@ function renderBooking() {
                 <div>
                   <strong>${selectedService.name}</strong>
                   <p style="font-size: 11.5px; color: var(--text-muted); margin-top: 1px;">
-                    ⏱️ ${selectedService.duration || 60} min • $${Number(selectedService.price).toLocaleString('es-AR')}
+                    ⏱️ ${selectedService.duration || 60} min • ${Number(selectedService.price).toLocaleString('es-AR')}
                   </p>
                 </div>
               </div>
               <button type="button" class="btn-secondary-action" style="padding: 6px 10px; font-size: 11px;" onclick="navigateTo('services')">
                 Cambiar
               </button>
+            </div>
+
+            <!-- Adicionales Opcionales (Upselling para aumentar ticket promedio) -->
+            <div style="margin-top: 14px; border-top: 1px dashed rgba(0,0,0,0.08); padding-top: 12px;">
+              <div style="display: flex; align-items: center; justify-content: space-between;">
+                <span style="font-size: 12px; font-weight: 700; color: var(--text-main);">✨ Sumar Adicionales al Turno:</span>
+                <span style="font-size: 11px; color: var(--accent-primary); font-weight: 600;">Opcional</span>
+              </div>
+              
+              <div class="addons-grid">
+                ${(AppState.addons || []).filter(a => a.active !== false).map(addon => {
+                  const isSelected = (AppState.bookingDraft.selectedAddonIds || []).includes(addon.id);
+                  return `
+                    <div class="addon-card-item ${isSelected ? 'selected' : ''}" onclick="window.toggleBookingAddon('${addon.id}')">
+                      <div class="addon-info-left">
+                        <div class="addon-checkbox">${isSelected ? '✓' : ''}</div>
+                        <div>
+                          <div class="addon-name">${addon.name}</div>
+                          <div class="addon-meta">+${addon.duration || 15} min</div>
+                        </div>
+                      </div>
+                      <div class="addon-price-tag">+${Number(addon.price).toLocaleString('es-AR')}</div>
+                    </div>
+                  `;
+                }).join('')}
+              </div>
+
+              <!-- Resumen Dinámico de Totales -->
+              <div class="total-summary-card">
+                <div class="total-summary-row">
+                  <span>${selectedService.name} (${selectedService.duration || 60} min):</span>
+                  <span>${Number(selectedService.price).toLocaleString('es-AR')}</span>
+                </div>
+                ${selectedAddonsList.map(a => `
+                  <div class="total-summary-row">
+                    <span>+ ${a.name} (${a.duration || 15} min):</span>
+                    <span>+${Number(a.price).toLocaleString('es-AR')}</span>
+                  </div>
+                `).join('')}
+                <div class="total-summary-row main">
+                  <span>Total Estimado (~${totalDuration} min):</span>
+                  <span>${Number(totalPrice).toLocaleString('es-AR')}</span>
+                </div>
+              </div>
             </div>
           `
               : `
@@ -1081,8 +1135,13 @@ function renderPanelAgenda() {
                   <div class="agenda-service-detail">
                     <span>${appt.serviceName}</span>
                     <span>•</span>
-                    <strong style="color: var(--text-main);">$${Number(appt.servicePrice || 0).toLocaleString('es-AR')}</strong>
+                    <strong style="color: var(--text-main);">${Number(appt.servicePrice || 0).toLocaleString('es-AR')}</strong>
                   </div>
+                  ${appt.addons && appt.addons.length > 0 ? `
+                    <div style="font-size: 11px; color: var(--accent-dark); font-weight: 600; margin-top: 2px;">
+                      ✨ Adicionales: ${appt.addons.map((a) => a.name).join(', ')}
+                    </div>
+                  ` : ''}
                 </div>
 
                 <div class="agenda-deposit-row">
@@ -1273,6 +1332,7 @@ function renderBlockSlotForm() {
 window.selectBookingDate = (dateStr) => {
   AppState.bookingDate = dateStr;
   AppState.bookingSlot = '';
+  AppState.bookingDraft.selectedAddonIds = [];
   renderApp();
 };
 
@@ -1760,6 +1820,47 @@ function renderPanelServices() {
                 `;
                     })
                     .join('')
+            }
+          </div>
+        </div>
+
+        <!-- SECCIÓN 4: ADICIONALES (ADD-ONS PARA AUMENTAR EL TICKET) -->
+        <div class="form-card">
+          <h3>✨ Adicionales en la Reserva (Upsell)</h3>
+          <p class="form-card-sub">Ofrecé servicios extras rápidos (retiro, nail art, nutrición) que la clienta puede sumar a su turno:</p>
+
+          <form onsubmit="window.handleCreateAddon(event)" style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 14px;">
+            <div style="display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 8px;">
+              <input type="text" id="addon-name-input" placeholder="Nombre (ej: Retiro Esmaltado)" style="padding: 9px 12px; border: 1px solid rgba(0,0,0,0.1); border-radius: 10px; font-size: 12.5px; background: var(--card-bg); color: var(--text-main);" required />
+              <input type="number" id="addon-price-input" placeholder="Precio ($)" style="padding: 9px 12px; border: 1px solid rgba(0,0,0,0.1); border-radius: 10px; font-size: 12.5px; background: var(--card-bg); color: var(--text-main);" required />
+              <input type="number" id="addon-dur-input" placeholder="Minutos" value="15" style="padding: 9px 12px; border: 1px solid rgba(0,0,0,0.1); border-radius: 10px; font-size: 12.5px; background: var(--card-bg); color: var(--text-main);" required />
+            </div>
+            <button type="submit" class="btn-primary-action" style="padding: 9px 12px; align-self: flex-start; font-size: 12px;">
+              + Agregar Adicional
+            </button>
+          </form>
+
+          <div style="display: flex; flex-direction: column; gap: 8px;">
+            ${(AppState.addons || []).length === 0 ? '<p style="font-size: 12px; color: var(--text-muted);">Sin adicionales cargados.</p>' :
+              (AppState.addons || []).map(a => {
+                const isActive = a.active !== false;
+                return `
+                  <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; background: var(--bg-soft); border-radius: 12px; border: 1px solid rgba(0,0,0,0.05);">
+                    <div>
+                      <strong style="font-size: 13px; color: var(--text-main);">${a.name}</strong>
+                      <span style="font-size: 11.5px; color: var(--text-muted); margin-left: 6px;">+${Number(a.price).toLocaleString('es-AR')} • ${a.duration || 15}m</span>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                      <button type="button" class="service-toggle-btn ${isActive ? 'active' : 'inactive'}" onclick="window.handleToggleAddonActive('${a.id}')" style="padding: 4px 8px; font-size: 11px;">
+                        ${isActive ? 'Activo' : 'Pausado'}
+                      </button>
+                      <button type="button" style="background: transparent; border: none; color: #dc2626; cursor: pointer; padding: 4px;" onclick="window.handleDeleteAddon('${a.id}', '${a.name}')" title="Eliminar adicional">
+                        ${Icons.trash}
+                      </button>
+                    </div>
+                  </div>
+                `;
+              }).join('')
             }
           </div>
         </div>
@@ -2854,8 +2955,16 @@ window.confirmBookingWhatsapp = async () => {
     return;
   }
 
+  const selectedAddonsList = (AppState.addons || []).filter((a) =>
+    (AppState.bookingDraft.selectedAddonIds || []).includes(a.id)
+  );
+  const addonsTotal = selectedAddonsList.reduce((acc, curr) => acc + Number(curr.price || 0), 0);
+  const addonsDuration = selectedAddonsList.reduce((acc, curr) => acc + Number(curr.duration || 0), 0);
+  const totalPrice = (Number(currentService.price) || 0) + addonsTotal;
+  const totalDuration = (Number(currentService.duration) || 60) + addonsDuration;
+
   const depositPercent = AppState.salon.depositPercent || 50;
-  const depositAmount = currentService.deposit || Math.round((currentService.price * depositPercent) / 100);
+  const depositAmount = Math.round((totalPrice * depositPercent) / 100);
 
   const apptId = 'appt_' + Date.now();
   const newAppt = {
@@ -2865,8 +2974,10 @@ window.confirmBookingWhatsapp = async () => {
     clientPhone: phone,
     serviceId: currentService.id,
     serviceName: currentService.name,
-    servicePrice: Number(currentService.price) || 0,
-    serviceDuration: Number(currentService.duration) || 60,
+    servicePrice: totalPrice,
+    serviceDuration: totalDuration,
+    basePrice: Number(currentService.price) || 0,
+    addons: selectedAddonsList.map((a) => ({ id: a.id, name: a.name, price: Number(a.price) || 0 })),
     date: AppState.bookingDate,
     slot: AppState.bookingSlot,
     status: 'pending',
@@ -2912,15 +3023,20 @@ window.confirmBookingWhatsapp = async () => {
 
   // Armar mensaje para WhatsApp
   const dateFormatted = formatDateDisplay(AppState.bookingDate);
+  const addonsText = selectedAddonsList.length > 0
+    ? `\n➕ *Adicionales:* ${selectedAddonsList.map((a) => `${a.name} (+${Number(a.price).toLocaleString('es-AR')})`).join(', ')}`
+    : '';
+
   const text =
     `¡Hola! Quiero confirmar mi turno en ${AppState.salon.name || 'el Salón'}:\n\n` +
     `✨ *Servicio:* ${currentService.name}\n` +
+    (addonsText ? `${addonsText}\n` : '') +
     `📅 *Fecha:* ${dateFormatted}\n` +
-    `⏰ *Horario:* ${AppState.bookingSlot} hs\n` +
+    `⏰ *Horario:* ${AppState.bookingSlot} hs (~${totalDuration} min)\n` +
     `👤 *Clienta:* ${name}\n` +
     `📱 *Teléfono:* ${phone}\n` +
-    `💵 *Total:* $${Number(currentService.price).toLocaleString('es-AR')}\n` +
-    `💳 *Seña requerida:* $${Number(depositAmount).toLocaleString('es-AR')}\n` +
+    `💵 *Total:* ${Number(totalPrice).toLocaleString('es-AR')}\n` +
+    `💳 *Seña requerida (${depositPercent}%):* ${Number(depositAmount).toLocaleString('es-AR')}\n` +
     `📌 *Alias de pago:* ${AppState.salon.alias || 'TU.ALIAS.MP'}\n\n` +
     `Adjunto mi comprobante de transferencia para congelar el turno. ¡Gracias!`;
 
@@ -3025,6 +3141,19 @@ async function startApp() {
 
   AppState.categories = await DataStore.getAll('categories');
   AppState.services = await DataStore.getAll('services');
+  AppState.addons = await DataStore.getAll('addons');
+  if (!AppState.addons || AppState.addons.length === 0) {
+    const DEFAULT_ADDONS = [
+      { id: 'addon_1', name: 'Retiro de Esmaltado Anterior', price: 1500, duration: 15, active: true },
+      { id: 'addon_2', name: 'Nail Art / Francesitas por uña', price: 2000, duration: 15, active: true },
+      { id: 'addon_3', name: 'Nutrición Capilar Exprés / Ampolla', price: 3500, duration: 20, active: true },
+      { id: 'addon_4', name: 'Exfoliación & Masaje de Manos', price: 2500, duration: 15, active: true }
+    ];
+    for (const addon of DEFAULT_ADDONS) {
+      await DataStore.set('addons', addon.id, addon);
+    }
+    AppState.addons = DEFAULT_ADDONS;
+  }
   AppState.appointments = await DataStore.getAll('appointments');
   AppState.clients = await DataStore.getAll('clients');
   AppState.finances = await DataStore.getAll('finances');
@@ -3047,3 +3176,49 @@ async function startApp() {
 }
 
 window.addEventListener('DOMContentLoaded', startApp);
+
+window.toggleBookingAddon = (addonId) => {
+  if (!AppState.bookingDraft.selectedAddonIds) {
+    AppState.bookingDraft.selectedAddonIds = [];
+  }
+  const idx = AppState.bookingDraft.selectedAddonIds.indexOf(addonId);
+  if (idx >= 0) {
+    AppState.bookingDraft.selectedAddonIds.splice(idx, 1);
+  } else {
+    AppState.bookingDraft.selectedAddonIds.push(addonId);
+  }
+  renderApp();
+};
+
+window.handleCreateAddon = async (e) => {
+  e.preventDefault();
+  const name = document.getElementById('addon-name-input')?.value.trim();
+  const price = Number(document.getElementById('addon-price-input')?.value) || 0;
+  const duration = Number(document.getElementById('addon-dur-input')?.value) || 15;
+  if (!name) return;
+
+  const id = 'addon_' + Date.now();
+  const newAddon = { id, name, price, duration, active: true };
+  AppState.addons.push(newAddon);
+  await DataStore.set('addons', id, newAddon);
+  showToast(`✨ Adicional "${name}" agregado`);
+  renderApp();
+};
+
+window.handleToggleAddonActive = async (addonId) => {
+  const addon = (AppState.addons || []).find((a) => a.id === addonId);
+  if (!addon) return;
+  addon.active = addon.active === false ? true : false;
+  await DataStore.set('addons', addonId, addon);
+  showToast(`✨ Adicional ${addon.active ? 'activado' : 'pausado'}`);
+  renderApp();
+};
+
+window.handleDeleteAddon = async (addonId, addonName) => {
+  const confirmDel = window.confirm(`¿Seguro que deseas eliminar el adicional "${addonName}"?`);
+  if (!confirmDel) return;
+  AppState.addons = (AppState.addons || []).filter((a) => a.id !== addonId);
+  await DataStore.remove('addons', addonId);
+  showToast(`🗑️ Adicional "${addonName}" eliminado`);
+  renderApp();
+};
