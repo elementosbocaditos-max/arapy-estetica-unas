@@ -1,4 +1,4 @@
-const CACHE_NAME = 'beauty-studio-v3.4';
+const CACHE_NAME = 'beauty-studio-v3.5';
 const ASSETS = [
   './',
   './index.html',
@@ -12,7 +12,15 @@ const ASSETS = [
 self.addEventListener('install', (event) => {
   self.skipWaiting();
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS))
+    caches.open(CACHE_NAME).then((cache) => {
+      return Promise.allSettled(
+        ASSETS.map((url) =>
+          cache.add(url).catch((err) => {
+            console.warn('Cache add failed for:', url, err);
+          })
+        )
+      );
+    })
   );
 });
 
@@ -29,10 +37,12 @@ self.addEventListener('activate', (event) => {
 // Estrategia Network-First: Siempre busca la versión más reciente en la red para ver cambios al instante
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
+  if (!event.request.url.startsWith('http')) return;
+
   event.respondWith(
     fetch(event.request)
       .then((networkResponse) => {
-        if (networkResponse && networkResponse.status === 200) {
+        if (networkResponse && networkResponse.status === 200 && networkResponse.type === 'basic') {
           const responseToCache = networkResponse.clone();
           caches.open(CACHE_NAME).then((cache) => {
             cache.put(event.request, responseToCache);

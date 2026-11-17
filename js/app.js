@@ -4002,6 +4002,270 @@ window.confirmBookingWhatsapp = async () => {
   window.scrollTo({ top: 0, behavior: 'smooth' });
 };
 
+
+// ============================================================================
+// MODAL DE ÉXITO & GOOGLE CALENDAR
+// ============================================================================
+function getGoogleCalendarUrl(appt) {
+  if (!appt || !appt.date || !appt.slot) return '#';
+  const salonName = AppState.salon.name || 'Maison de Beauté';
+  const title = encodeURIComponent(`Turno: ${appt.serviceName} en ${salonName}`);
+  
+  // Formato fecha y hora: YYYYMMDDTHHmmss
+  const cleanDate = appt.date.replace(/-/g, '');
+  const [hours, mins] = appt.slot.split(':');
+  const duration = Number(appt.serviceDuration) || 60;
+  
+  const startH = hours.padStart(2, '0');
+  const startM = (mins || '00').padStart(2, '0');
+  
+  // Calcular hora de fin
+  const totalMin = parseInt(startH, 10) * 60 + parseInt(startM, 10) + duration;
+  const endH = String(Math.floor(totalMin / 60)).padStart(2, '0');
+  const endM = String(totalMin % 60).padStart(2, '0');
+  
+  const dates = `${cleanDate}T${startH}${startM}00/${cleanDate}T${endH}${endM}00`;
+  const location = AppState.salon.address || '';
+  const details = `Turno agendado en ${salonName}.\nServicio: ${appt.serviceName}\nDuración: ~${duration} min.\nSeña: ${Number(appt.depositAmount || 0).toLocaleString('es-AR')}\nAlias: ${AppState.salon.alias || ''}`;
+  
+  return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${dates}&details=${encodeURIComponent(details)}&location=${encodeURIComponent(location)}`;
+}
+
+function renderBookingSuccessModal() {
+  const appt = AppState.lastBookedAppt;
+  if (!appt) return '';
+
+  const gCalUrl = getGoogleCalendarUrl(appt);
+
+  return `
+    <div class="booking-success-overlay">
+      <div class="booking-success-modal gold-card">
+        <div class="success-icon-badge">✨</div>
+        <h3 style="font-size: 18px; font-weight: 800; color: var(--text-main); margin-bottom: 4px;">¡Turno Agendado con Éxito!</h3>
+        <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 14px;">
+          Tu solicitud fue enviada por WhatsApp a la dueña del salón para confirmar la seña.
+        </p>
+
+        <div class="success-summary-box">
+          <div style="font-size: 14px; font-weight: 800; color: var(--text-main); margin-bottom: 2px;">${appt.serviceName}</div>
+          <div style="font-size: 12px; color: var(--gold-primary); font-weight: 700; margin-bottom: 4px;">
+            📅 ${formatDateDisplay(appt.date)} • ⏰ ${appt.slot} hs (~${appt.serviceDuration || 60}m)
+          </div>
+          ${appt.addons && appt.addons.length > 0 ? `
+            <div style="font-size: 11px; color: var(--text-main); margin-bottom: 4px;">
+              ✨ Adicionales: <strong>${appt.addons.map(a => a.name).join(', ')}</strong>
+            </div>
+          ` : ''}
+          <div style="font-size: 11.5px; color: var(--text-muted); margin-top: 2px;">
+            📍 ${AppState.salon.address || 'Local del Salón'}
+          </div>
+          <div style="font-size: 11.5px; color: var(--text-muted); margin-top: 4px; padding-top: 4px; border-top: 1px dashed rgba(0,0,0,0.08);">
+            💳 Seña: <strong>${Number(appt.depositAmount).toLocaleString('es-AR')}</strong> (Alias: <code style="font-weight: 800; color: var(--gold-primary);">${AppState.salon.alias || 'MAISON.BEAUTE.MP'}</code>)
+          </div>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 16px;">
+          <a href="${gCalUrl}" target="_blank" rel="noopener noreferrer" class="btn-google-calendar">
+            <span>📅</span>
+            <span>Agendar en Google Calendar</span>
+          </a>
+          <button type="button" class="btn-primary-action btn-gold-shimmer" style="padding: 12px; font-size: 13px;" onclick="window.closeBookingSuccessModal()">
+            Listo / Volver al Inicio
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// ============================================================================
+// RENDERIZADO PRINCIPAL DE LA APLICACIÓN
+// ============================================================================
+function renderApp() {
+  const root = document.getElementById('app-root');
+  if (!root) return;
+
+  let screenContent = '';
+  switch (AppState.activeScreen) {
+    case 'splash':
+      screenContent = renderSplash();
+      break;
+    case 'home':
+      screenContent = renderHome();
+      break;
+    case 'services':
+      screenContent = renderServices();
+      break;
+    case 'inspo':
+      screenContent = renderInspo();
+      break;
+    case 'booking':
+      screenContent = renderBooking();
+      break;
+    case 'panel':
+      screenContent = renderPanel();
+      break;
+    default:
+      screenContent = renderHome();
+  }
+
+  // Barra inferior (visible en todas las pantallas excepto Portada y Teclado PIN)
+  const showBottomNav =
+    AppState.activeScreen !== 'splash' &&
+    !(AppState.activeScreen === 'panel' && !AppState.isOwnerUnlocked);
+
+  const bottomNavHtml = showBottomNav
+    ? `
+    <nav class="bottom-nav-bar">
+      <button type="button" class="nav-tab-btn ${AppState.activeScreen === 'home' ? 'active' : ''}" onclick="navigateTo('home')">
+        ${Icons.home}
+        <span>Inicio</span>
+      </button>
+      <button type="button" class="nav-tab-btn ${AppState.activeScreen === 'services' ? 'active' : ''}" onclick="navigateTo('services')">
+        ${Icons.scissors}
+        <span>Servicios</span>
+      </button>
+      <button type="button" class="nav-tab-btn ${AppState.activeScreen === 'inspo' ? 'active' : ''}" onclick="navigateTo('inspo')">
+        ${Icons.sparkles}
+        <span>Inspo</span>
+      </button>
+      <button type="button" class="nav-tab-btn ${AppState.activeScreen === 'booking' ? 'active' : ''}" onclick="navigateTo('booking')">
+        ${Icons.calendar}
+        <span>Mi Turno</span>
+      </button>
+      <button type="button" class="nav-tab-btn ${AppState.activeScreen === 'panel' ? 'active' : ''}" onclick="navigateTo('panel')">
+        ${Icons.lock}
+        <span>Panel</span>
+      </button>
+    </nav>
+  `
+    : '';
+
+  const toastHtml = AppState.toastMessage ? `<div class="toast-msg">${AppState.toastMessage}</div>` : '';
+  const successModalHtml = AppState.isBookingSuccessModalOpen ? renderBookingSuccessModal() : '';
+
+  root.innerHTML = `
+    ${screenContent}
+    ${bottomNavHtml}
+    ${toastHtml}
+    ${successModalHtml}
+  `;
+}
+window.renderApp = renderApp;
+
+// ============================================================================
+// INICIALIZACIÓN
+// ============================================================================
+async function startApp() {
+  try {
+    await initFirebase();
+  } catch(e) {
+    console.warn('Firebase init fallback:', e);
+  }
+
+  try {
+    const savedSalon = await DataStore.get('salon', 'config');
+    if (savedSalon && !savedSalon.isDemo && savedSalon.themeColor !== 'rose') {
+      AppState.salon = { ...AppState.salon, ...savedSalon };
+    } else {
+      AppState.salon = {
+        ...AppState.salon,
+        name: 'Maison de Beauté',
+        tagline: 'Rituels de beauté exclusifs • Soins signature sur rendez-vous',
+        splashTitle: "L'Art de la Beauté,",
+        splashSubtitle: 'Uñas & Peluquería de Autor',
+        themeColor: 'champagne',
+        splashHero: './assets/splash-hero.jpg?v=3.0',
+        isDemo: true
+      };
+      await DataStore.set('salon', 'config', AppState.salon);
+    }
+
+    applyTheme(AppState.salon.themeColor || 'champagne');
+
+    AppState.categories = await DataStore.getAll('categories');
+    AppState.services = await DataStore.getAll('services');
+    AppState.addons = await DataStore.getAll('addons');
+
+    if (AppState.categories.length === 0 && AppState.services.length === 0) {
+      for (const c of DEMO_SHOWCASE.categories) {
+        await DataStore.set('categories', c.id, c);
+      }
+      for (const s of DEMO_SHOWCASE.services) {
+        await DataStore.set('services', s.id, s);
+      }
+      for (const a of DEMO_SHOWCASE.addons) {
+        await DataStore.set('addons', a.id, a);
+      }
+      AppState.categories = [...DEMO_SHOWCASE.categories];
+      AppState.services = [...DEMO_SHOWCASE.services];
+      AppState.addons = [...DEMO_SHOWCASE.addons];
+    }
+
+    if (!AppState.addons || AppState.addons.length === 0) {
+      const DEFAULT_ADDONS = [
+        { id: 'addon_1', name: 'Retiro de Esmaltado Anterior', price: 1500, duration: 15, active: true },
+        { id: 'addon_2', name: 'Nail Art / Francesitas por uña', price: 2000, duration: 15, active: true },
+        { id: 'addon_3', name: 'Nutrición Capilar Exprés / Ampolla', price: 3500, duration: 20, active: true },
+        { id: 'addon_4', name: 'Exfoliación & Masaje de Manos', price: 2500, duration: 15, active: true }
+      ];
+      for (const addon of DEFAULT_ADDONS) {
+        await DataStore.set('addons', addon.id, addon);
+      }
+      AppState.addons = DEFAULT_ADDONS;
+    }
+
+    AppState.appointments = await DataStore.getAll('appointments');
+    AppState.clients = await DataStore.getAll('clients');
+    AppState.finances = await DataStore.getAll('finances');
+    AppState.photoBank = await DataStore.getAll('photoBank');
+
+    if (!AppState.photoBank || AppState.photoBank.length === 0) {
+      const DEFAULT_PHOTO_BANK = [
+        { id: 'pb_1', title: 'Modelo Francesa Luminous', url: './assets/splash-hero.jpg', category: 'Portada' },
+        { id: 'pb_2', title: 'Uñas Studio Kapping', url: './assets/studio-nails.jpg', category: 'Uñas' },
+        { id: 'pb_3', title: 'Francesitas Rose Gold', url: './assets/inspo-rose-french.jpg', category: 'Nail Art' },
+        { id: 'pb_4', title: 'Black & Gold Glam', url: './assets/inspo-black-gold.jpg', category: 'Nail Art' },
+        { id: 'pb_5', title: 'Balayage Caramelo & Brushing', url: './assets/service-hair-balayage.jpg', category: 'Peluquería' },
+        { id: 'pb_6', title: 'Corte Femenino de Autor', url: './assets/service-hair-cut.jpg', category: 'Peluquería' },
+        { id: 'pb_7', title: 'Salón Lounge Interior', url: './assets/studio-interior.jpg', category: 'Salón' }
+      ];
+      for (const p of DEFAULT_PHOTO_BANK) {
+        await DataStore.set('photoBank', p.id, p);
+      }
+      AppState.photoBank = DEFAULT_PHOTO_BANK;
+    }
+    AppState.blockedSlots = await DataStore.getAll('blockedSlots');
+
+    const upcomingDays = getUpcomingDays(10);
+    if (!AppState.bookingDate && upcomingDays.length > 0) {
+      AppState.bookingDate = upcomingDays[0].dateStr;
+    }
+    if (!AppState.agendaSelectedDate) {
+      AppState.agendaSelectedDate = getTodayDateStr();
+    }
+
+    const savedInspo = await DataStore.getAll('inspo');
+    if (savedInspo && savedInspo.length > 0) {
+      AppState.inspo = savedInspo;
+    }
+  } catch (err) {
+    console.error('Initialization error, fallback to demo state:', err);
+  }
+
+  // Renderizar la app inmediatamente
+  renderApp();
+}
+
+window.startApp = startApp;
+
+if (document.readyState === 'complete' || document.readyState === 'interactive') {
+  startApp();
+} else {
+  window.addEventListener('DOMContentLoaded', startApp);
+}
+
+
 window.toggleBookingAddon = (addonId) => {
   if (!AppState.bookingDraft.selectedAddonIds) {
     AppState.bookingDraft.selectedAddonIds = [];
