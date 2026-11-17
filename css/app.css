@@ -280,8 +280,9 @@ body.theme-noir .header-back-btn {
   min-height: 360px;
   max-height: 520px;
   flex-shrink: 0;
-  background: #000;
+  background: #faf7f2;
   overflow: hidden;
+  border-bottom: 1.5px solid var(--gold-line);
 }
 
 .splash-hero-img {
@@ -354,13 +355,7 @@ body.theme-noir .header-back-btn {
 }
 
 .splash-hero-bottom-fade {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 90px;
-  background: linear-gradient(180deg, rgba(0, 0, 0, 0) 0%, rgba(20, 16, 18, 0.6) 50%, var(--ivory-bg) 100%);
-  pointer-events: none;
+  display: none !important;
 }
 
 .splash-bottom-content {
@@ -372,7 +367,8 @@ body.theme-noir .header-back-btn {
   justify-content: flex-end;
   position: relative;
   z-index: 5;
-  margin-top: -24px;
+  margin-top: 0;
+  border-top: 1px solid var(--gold-line);
 }
 
 body.theme-noir .splash-bottom-content {

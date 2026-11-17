@@ -377,7 +377,7 @@ function renderSplash() {
       <!-- Foto LUMINOSA de Luz Natural en Primer Plano con Movimiento Suave Ken-Burns -->
       <div class="splash-photo-hero" style="height: 56dvh; min-height: 370px;">
         <img
-          src="${AppState.salon.splashHero || './assets/splash-hero.jpg'}"
+          src="${AppState.salon.splashHero || './assets/splash-hero.jpg'}?v=3.0"
           alt="Maison de Beauté"
           class="splash-hero-img-luminous"
           onerror="this.src='./assets/splash-hero.jpg'"
@@ -3453,8 +3453,21 @@ async function startApp() {
   await initFirebase();
 
   const savedSalon = await DataStore.get('salon', 'config');
-  if (savedSalon) {
+  if (savedSalon && !savedSalon.isDemo && savedSalon.themeColor !== 'rose') {
     AppState.salon = { ...AppState.salon, ...savedSalon };
+  } else {
+    // Si no tiene datos propios o tiene la demo oscura previa, actualizar a la nueva Maison de Beauté luminosa
+    AppState.salon = {
+      ...AppState.salon,
+      name: 'Maison de Beauté',
+      tagline: 'Rituels de beauté exclusifs • Soins signature sur rendez-vous',
+      splashTitle: "L'Art de la Beauté,",
+      splashSubtitle: 'Uñas & Peluquería de Autor',
+      themeColor: 'champagne',
+      splashHero: './assets/splash-hero.jpg?v=3.0',
+      isDemo: true
+    };
+    await DataStore.set('salon', 'config', AppState.salon);
   }
 
   // Aplicar tema configurado
