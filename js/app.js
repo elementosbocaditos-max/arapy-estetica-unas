@@ -795,13 +795,33 @@ function renderBooking() {
     AppState.bookingDate = upcomingDays[0].dateStr;
   }
 
-  // Comprobar si hay datos previos guardados en localStorage
+  // Comprobar si hay datos previos guardados de la clienta en este dispositivo
   let savedName = '';
   let savedPhone = '';
+  let savedNotes = '';
   try {
-    savedName = localStorage.getItem('beauty_client_name') || localStorage.getItem('dg_client_name') || '';
-    savedPhone = localStorage.getItem('beauty_client_phone') || localStorage.getItem('dg_client_phone') || '';
+    const profileRaw = localStorage.getItem('maison_client_profile');
+    if (profileRaw) {
+      const p = JSON.parse(profileRaw);
+      savedName = p.name || '';
+      savedPhone = p.phone || '';
+      savedNotes = p.notes || '';
+    }
+    if (!savedName) savedName = localStorage.getItem('beauty_client_name') || localStorage.getItem('dg_client_name') || '';
+    if (!savedPhone) savedPhone = localStorage.getItem('beauty_client_phone') || localStorage.getItem('dg_client_phone') || '';
+    if (!savedNotes) savedNotes = localStorage.getItem('beauty_client_notes') || '';
   } catch (e) {}
+
+  // Auto-recordar para el borrador del turno
+  if (!AppState.bookingDraft.clientName && savedName) {
+    AppState.bookingDraft.clientName = savedName;
+  }
+  if (!AppState.bookingDraft.clientPhone && savedPhone) {
+    AppState.bookingDraft.clientPhone = savedPhone;
+  }
+  if (!AppState.bookingDraft.clientNotes && savedNotes) {
+    AppState.bookingDraft.clientNotes = savedNotes;
+  }
 
   // Si ya se confirmó el turno, mostrar el Paso 4
   if (currentStep === 4 && AppState.lastBookedAppt) {
@@ -1062,15 +1082,26 @@ function renderBooking() {
               Te enviaremos la confirmación directa a tu WhatsApp:
             </p>
 
-            <!-- Botón de Auto-completado rápido si ya reservó antes (Como en Daniela Gimenez) -->
+            <!-- Reconocimiento Inteligente de la Clienta -->
             ${(savedName && savedPhone) ? `
-              <button type="button" class="btn-quick-autofill" onclick="window.applySavedClientData('${savedName}', '${savedPhone}')">
-                <div>
-                  <span>✨ Usar mis datos anteriores:</span>
-                  <strong style="margin-left: 4px;">${savedName} (${savedPhone})</strong>
+              <div class="client-recognition-card gold-card" style="margin-bottom: 14px; padding: 12px 14px; background: rgba(197, 155, 39, 0.08); border: 1px solid var(--gold-line); border-radius: 14px; display: flex; align-items: center; justify-content: space-between;">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                  <div style="width: 34px; height: 34px; border-radius: 50%; background: var(--gold-soft); color: var(--gold-dark); display: flex; align-items: center; justify-content: center; font-size: 15px; flex-shrink: 0;">
+                    ✨
+                  </div>
+                  <div>
+                    <div style="font-size: 13px; font-weight: 800; color: var(--text-main);">
+                      ¡Bienvenida de nuevo, ${savedName}!
+                    </div>
+                    <div style="font-size: 11px; color: var(--gold-dark); font-weight: 600;">
+                      Recordamos tu número (${savedPhone}) para que reserves en 1 segundo
+                    </div>
+                  </div>
                 </div>
-                <span style="font-size: 10.5px; text-decoration: underline;">Completar</span>
-              </button>
+                <button type="button" class="btn-clear-saved" onclick="window.clearSavedClientData()" style="background: none; border: none; font-size: 11px; color: var(--text-muted); text-decoration: underline; cursor: pointer; padding: 4px;">
+                  Cambiar
+                </button>
+              </div>
             ` : ''}
 
             <div class="form-group-clean">
@@ -1080,12 +1111,15 @@ function renderBooking() {
 
             <div class="form-group-clean">
               <label>Tu Teléfono de WhatsApp</label>
-              <input type="tel" placeholder="Ej: 11 2345 6789" id="client-phone-input" value="${AppState.bookingDraft.clientPhone || savedPhone || ''}" oninput="AppState.bookingDraft.clientPhone=this.value" required />
+              <input type="tel" placeholder="Ej: 11 2345 6789" id="client-phone-input" value="${AppState.bookingDraft.clientPhone || savedPhone || ''}" oninput="window.handleClientPhoneInput(this.value)" required />
+              <span style="font-size: 10.5px; color: var(--text-muted); margin-top: 3px; display: block;">
+                💡 Si ya te atendiste antes, el sistema te reconocerá automáticamente al ingresar tu número.
+              </span>
             </div>
 
             <div class="form-group-clean">
               <label>Notas o Preferencias (Opcional)</label>
-              <textarea id="client-notes-input" rows="2" placeholder="Ej: Alergia a olores fuertes, uñas frágiles, o detalles para la profesional...">${AppState.bookingDraft.clientNotes || ''}</textarea>
+              <textarea id="client-notes-input" rows="2" placeholder="Ej: Alergia a olores fuertes, uñas frágiles, o detalles para la profesional..." oninput="AppState.bookingDraft.clientNotes=this.value">${AppState.bookingDraft.clientNotes || savedNotes || ''}</textarea>
             </div>
 
             <!-- Resumen Completo del Turno & Seña -->
@@ -1258,8 +1292,83 @@ window.handleAdvanceToStep3 = () => {
     return;
   }
   AppState.bookingStep = 3;
+
+  // Auto-recordar datos de la clienta en el borrador si existen
+  let savedName = '';
+  let savedPhone = '';
+  let savedNotes = '';
+  try {
+    const profileRaw = localStorage.getItem('maison_client_profile');
+    if (profileRaw) {
+      const p = JSON.parse(profileRaw);
+      savedName = p.name || '';
+      savedPhone = p.phone || '';
+      savedNotes = p.notes || '';
+    }
+    if (!savedName) savedName = localStorage.getItem('beauty_client_name') || localStorage.getItem('dg_client_name') || '';
+    if (!savedPhone) savedPhone = localStorage.getItem('beauty_client_phone') || localStorage.getItem('dg_client_phone') || '';
+    if (!savedNotes) savedNotes = localStorage.getItem('beauty_client_notes') || '';
+  } catch (e) {}
+
+  if (!AppState.bookingDraft.clientName && savedName) {
+    AppState.bookingDraft.clientName = savedName;
+  }
+  if (!AppState.bookingDraft.clientPhone && savedPhone) {
+    AppState.bookingDraft.clientPhone = savedPhone;
+  }
+  if (!AppState.bookingDraft.clientNotes && savedNotes) {
+    AppState.bookingDraft.clientNotes = savedNotes;
+  }
+
   renderApp();
   window.scrollTo({ top: 0, behavior: 'smooth' });
+};
+
+window.handleClientPhoneInput = (val) => {
+  AppState.bookingDraft.clientPhone = val;
+  const cleanPhone = val.replace(/\D/g, '');
+  if (cleanPhone.length >= 8) {
+    const existing = (AppState.clients || []).find((c) => {
+      const cClean = (c.phone || '').replace(/\D/g, '');
+      return cClean.length >= 8 && (cClean.endsWith(cleanPhone.slice(-8)) || cleanPhone.endsWith(cClean.slice(-8)));
+    });
+    if (existing) {
+      AppState.bookingDraft.clientName = existing.name;
+      const nameInput = document.getElementById('client-name-input');
+      if (nameInput) nameInput.value = existing.name;
+
+      if (existing.notes && !AppState.bookingDraft.clientNotes) {
+        AppState.bookingDraft.clientNotes = existing.notes;
+        const notesInput = document.getElementById('client-notes-input');
+        if (notesInput) notesInput.value = existing.notes;
+      }
+      showToast(`✨ ¡Hola ${existing.name}! Recordamos tu ficha.`);
+      try {
+        localStorage.setItem('beauty_client_name', existing.name);
+        localStorage.setItem('beauty_client_phone', val);
+        if (existing.notes) localStorage.setItem('beauty_client_notes', existing.notes);
+        localStorage.setItem('maison_client_profile', JSON.stringify({
+          name: existing.name,
+          phone: val,
+          notes: existing.notes || ''
+        }));
+      } catch (e) {}
+    }
+  }
+};
+
+window.clearSavedClientData = () => {
+  AppState.bookingDraft.clientName = '';
+  AppState.bookingDraft.clientPhone = '';
+  AppState.bookingDraft.clientNotes = '';
+  try {
+    localStorage.removeItem('beauty_client_name');
+    localStorage.removeItem('beauty_client_phone');
+    localStorage.removeItem('beauty_client_notes');
+    localStorage.removeItem('maison_client_profile');
+  } catch (e) {}
+  showToast('Datos desvinculados para ingresar otra clienta');
+  renderApp();
 };
 
 window.applySavedClientData = (name, phone) => {
@@ -1968,6 +2077,8 @@ window.handleSaveManualAppt = async (e) => {
     slot: slot,
     price: srvPrice
   });
+  client.totalSpent = (Number(client.totalSpent) || 0) + srvPrice;
+  client.updatedAt = new Date().toISOString();
   newAppt.clientId = client.id;
 
   await DataStore.set('appointments', apptId, newAppt);
@@ -3687,30 +3798,38 @@ window.handleSaveClient = async (e) => {
   }
 
   const isEdit = !!AppState.editingClientId;
-  const clientId = isEdit ? AppState.editingClientId : 'cli_' + Date.now();
+  let clientId = isEdit ? AppState.editingClientId : 'cli_' + Date.now();
 
   let client = isEdit
     ? (AppState.clients || []).find((c) => c.id === clientId)
-    : { id: clientId, history: [], totalSpent: 0, createdAt: new Date().toISOString() };
+    : (AppState.clients || []).find((c) => {
+        if (!c.phone || !phone) return false;
+        const cClean = c.phone.replace(/\D/g, '');
+        const pClean = phone.replace(/\D/g, '');
+        return cClean === pClean || (cClean.length >= 8 && pClean.length >= 8 && cClean.slice(-8) === pClean.slice(-8));
+      });
 
   if (!client) {
     client = { id: clientId, history: [], totalSpent: 0, createdAt: new Date().toISOString() };
+  } else {
+    clientId = client.id;
   }
 
   client.name = name;
   client.phone = phone;
   client.notes = notes;
+  client.updatedAt = new Date().toISOString();
 
   await DataStore.set('clients', clientId, client);
 
-  if (isEdit) {
-    const idx = (AppState.clients || []).findIndex((c) => c.id === clientId);
-    if (idx >= 0) AppState.clients[idx] = client;
-    showToast('✅ Ficha de clienta actualizada');
+  if (!AppState.clients) AppState.clients = [];
+  const idx = AppState.clients.findIndex((c) => c.id === clientId);
+  if (idx >= 0) {
+    AppState.clients[idx] = client;
+    showToast('✅ Ficha de clienta actualizada y recordada');
   } else {
-    if (!AppState.clients) AppState.clients = [];
     AppState.clients.push(client);
-    showToast('🎉 Nueva clienta registrada');
+    showToast('🎉 Nueva clienta registrada y recordada en el sistema');
   }
 
   AppState.isClientModalOpen = false;
@@ -3967,18 +4086,29 @@ window.confirmBookingWhatsapp = async () => {
   };
 
   // Crear o actualizar automáticamente la ficha de la clienta en el CRM
-  let client = (AppState.clients || []).find((c) => c.phone && c.phone === phone);
+  let client = (AppState.clients || []).find((c) => {
+    if (!c.phone || !phone) return false;
+    const cClean = c.phone.replace(/\D/g, '');
+    const pClean = phone.replace(/\D/g, '');
+    return cClean === pClean || (cClean.length >= 8 && pClean.length >= 8 && cClean.slice(-8) === pClean.slice(-8));
+  });
+
   if (!client) {
     client = {
       id: 'cli_' + Date.now(),
       name: name,
       phone: phone,
-      notes: notes,
+      notes: notes || '',
       history: [],
       totalSpent: 0,
       createdAt: new Date().toISOString()
     };
+  } else {
+    if (name && (!client.name || client.name.trim() === '')) client.name = name;
+    if (notes && !client.notes) client.notes = notes;
+    else if (notes && client.notes && !client.notes.includes(notes)) client.notes = `${client.notes} | ${notes}`;
   }
+
   client.history = client.history || [];
   client.history.push({
     apptId: apptId,
@@ -3988,6 +4118,9 @@ window.confirmBookingWhatsapp = async () => {
     slot: AppState.bookingSlot,
     price: totalPrice
   });
+  client.totalSpent = (Number(client.totalSpent) || 0) + totalPrice;
+  client.lastVisit = AppState.bookingDate;
+  client.updatedAt = new Date().toISOString();
   newAppt.clientId = client.id;
 
   // Persistir en Firebase / LocalStorage
@@ -4000,6 +4133,23 @@ window.confirmBookingWhatsapp = async () => {
     AppState.clients[clientIdx] = client;
   } else {
     AppState.clients.push(client);
+  }
+
+  // Guardar perfil en el navegador/celular de la clienta para recordar quién es en su próxima cita
+  try {
+    localStorage.setItem('beauty_client_name', name);
+    localStorage.setItem('beauty_client_phone', phone);
+    if (notes) localStorage.setItem('beauty_client_notes', notes);
+    localStorage.setItem('maison_client_profile', JSON.stringify({
+      name: name,
+      phone: phone,
+      notes: notes || '',
+      lastService: currentService.name,
+      lastDate: AppState.bookingDate,
+      visitCount: (client.history || []).length
+    }));
+  } catch (err) {
+    console.warn('Error guardando memoria de clienta en localStorage:', err);
   }
 
   AppState.lastBookedAppt = newAppt;

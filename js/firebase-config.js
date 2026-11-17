@@ -148,6 +148,11 @@ export const DataStore = {
     return true;
   },
 
+  // Alias para compatibilidad
+  async delete(collection, id) {
+    return this.remove(collection, id);
+  },
+
   // Escucha en tiempo real (Suscripción)
   subscribe(collection, callback) {
     let unsubscribeFirestore = null;
