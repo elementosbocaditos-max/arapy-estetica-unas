@@ -390,7 +390,7 @@ function renderSplash() {
       <!-- Foto LUMINOSA de Luz Natural en Primer Plano con Movimiento Suave Ken-Burns -->
       <div class="splash-photo-hero" style="height: 56dvh; min-height: 370px;">
         <img
-          src="${AppState.salon.splashHero || './assets/splash-hero.jpg'}?v=3.0"
+          src="${(AppState.salon.splashHero || './assets/splash-hero.jpg').includes('?') ? (AppState.salon.splashHero || './assets/splash-hero.jpg') : (AppState.salon.splashHero || './assets/splash-hero.jpg') + '?v=3.5'}"
           alt="Maison de Beauté"
           class="splash-hero-img-luminous"
           onerror="this.src='./assets/splash-hero.jpg'"
@@ -4175,7 +4175,7 @@ async function startApp() {
         splashTitle: "L'Art de la Beauté,",
         splashSubtitle: 'Uñas & Peluquería de Autor',
         themeColor: 'champagne',
-        splashHero: './assets/splash-hero.jpg?v=3.0',
+        splashHero: './assets/splash-hero.jpg',
         isDemo: true
       };
       await DataStore.set('salon', 'config', AppState.salon);
