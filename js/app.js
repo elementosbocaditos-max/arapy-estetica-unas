@@ -387,25 +387,32 @@ window.handlePinDelete = handlePinDelete;
 function renderSplash() {
   return `
     <div class="screen-viewport no-bottom-bar splash-container" style="background: var(--ivory-bg);">
-      <!-- Foto LUMINOSA de Luz Natural en Primer Plano con Movimiento Suave Ken-Burns -->
+      <!-- Foto LUMINOSA de Luz Natural en Primer Plano con Movimiento Suave Ken-Burns y Difuminado Orgánico -->
       <div class="splash-photo-hero" style="height: 56dvh; min-height: 370px;">
         <img
-          src="${(AppState.salon.splashHero || './assets/splash-hero.jpg').includes('?') ? (AppState.salon.splashHero || './assets/splash-hero.jpg') : (AppState.salon.splashHero || './assets/splash-hero.jpg') + '?v=3.5'}"
+          src="${(AppState.salon.splashHero || './assets/splash-hero.jpg').includes('?') ? (AppState.salon.splashHero || './assets/splash-hero.jpg') : (AppState.salon.splashHero || './assets/splash-hero.jpg') + '?v=3.6'}"
           alt="Maison de Beauté"
           class="splash-hero-img-luminous"
           onerror="this.src='./assets/splash-hero.jpg'"
         />
         <div class="splash-top-bar">
           <span class="gold-badge">✦ ${AppState.salon.name || 'Maison de Beauté'}</span>
-          <button type="button" class="mirrored-icon-badge" onclick="navigateTo('panel')" title="Acceso Dueño" style="width: 36px; height: 36px; border-radius: 50%;">
-            ${Icons.lock}
-          </button>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <input type="file" id="cover-direct-picker" accept="image/*" style="display: none;" onchange="window.handleUploadSplashPhoto(event)" />
+            <button type="button" class="splash-change-cover-pill" onclick="document.getElementById('cover-direct-picker').click()" title="Cambiar foto de portada con fotos propias">
+              <span>📷</span>
+              <span>Cambiar Foto</span>
+            </button>
+            <button type="button" class="mirrored-icon-badge" onclick="navigateTo('panel')" title="Acceso Dueño" style="width: 36px; height: 36px; border-radius: 50%;">
+              ${Icons.lock}
+            </button>
+          </div>
         </div>
-        <div style="position: absolute; bottom: 0; left: 0; right: 0; height: 85px; background: linear-gradient(180deg, transparent 0%, rgba(250, 247, 242, 0.7) 50%, var(--ivory-bg) 100%); pointer-events: none;"></div>
+        <div class="splash-fade-overlay"></div>
       </div>
 
       <!-- Tarjeta Flotante con Tipografía de Perfumería Francesa y Líneas Doradas -->
-      <div class="splash-bottom-content" style="background: var(--ivory-bg); padding: 12px 22px 28px; margin-top: -24px; position: relative; z-index: 10;">
+      <div class="splash-bottom-content" style="background: var(--ivory-bg); padding: 12px 22px 28px; margin-top: -36px; position: relative; z-index: 10;">
         <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
           <span class="parfumerie-kicker">★ 4.9 • EXPÉRIENCE EXCLUSIVE</span>
           <span style="font-size: 10.5px; font-weight: 700; color: #16a34a; display: flex; align-items: center;">
@@ -2152,6 +2159,27 @@ function renderPanelSalon() {
               Guardar Datos Comerciales
             </button>
           </form>
+
+          <div class="form-card gold-card" style="margin-top: 14px;">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px;">
+              <h3>📸 Foto de Portada de la App</h3>
+              <span class="gold-badge" style="font-size: 10px;">100% Personalizable</span>
+            </div>
+            <p class="form-card-sub">Cambiá la foto de bienvenida por tus propios trabajos o fotos de tu salón:</p>
+            <div style="margin: 10px 0; border-radius: 12px; overflow: hidden; height: 140px; position: relative; border: 1px solid var(--gold-line);">
+              <img src="${AppState.salon.splashHero || './assets/splash-hero.jpg'}" style="width: 100%; height: 100%; object-fit: cover;" alt="Portada actual" />
+              <div style="position: absolute; bottom: 8px; right: 8px; background: rgba(0,0,0,0.65); backdrop-filter: blur(4px); color: #fff; font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: 999px;">
+                Portada Actual
+              </div>
+            </div>
+            <input type="file" id="store-cover-picker" accept="image/*" style="display: none;" onchange="window.handleUploadSplashPhoto(event)" />
+            <button type="button" class="btn-primary-action btn-gold-shimmer" style="width: 100%;" onclick="document.getElementById('store-cover-picker').click()">
+              📷 Subir Mi Propia Foto de Portada
+            </button>
+            <p style="font-size: 11px; color: var(--text-muted); margin-top: 6px; text-align: center;">
+              Se optimiza automáticamente para cargar instantáneamente en cualquier celular.
+            </p>
+          </div>
         ` : ''}
 
         <!-- PESTAÑA 2: HORARIOS DE ATENCIÓN -->
@@ -3010,12 +3038,22 @@ window.setBannerPreset = (url) => {
 window.handleUploadSplashPhoto = async (e) => {
   const file = e.target.files && e.target.files[0];
   if (!file) return;
-  showToast('⏳ Optimizando y subiendo foto...');
+  showToast('⏳ Optimizando y subiendo foto con luz natural...');
   try {
     const dataUrl = await compressAndReadImage(file, 1080, 0.86);
     AppState.salon.splashHero = dataUrl;
     await DataStore.set('salon', 'config', AppState.salon);
-    showToast('📸 ¡Foto de portada actualizada desde tu celular!');
+    if (!AppState.photoBank) AppState.photoBank = [];
+    if (!AppState.photoBank.find((p) => p.url === dataUrl)) {
+      AppState.photoBank.unshift({
+        id: 'photo_cover_' + Date.now(),
+        title: 'Foto Portada (' + new Date().toLocaleDateString('es-AR') + ')',
+        category: 'salon',
+        url: dataUrl
+      });
+      await DataStore.set('photos', 'items', AppState.photoBank);
+    }
+    showToast('📸 ¡Foto de portada actualizada con tu foto propia!');
     renderApp();
   } catch (err) {
     console.error(err);
