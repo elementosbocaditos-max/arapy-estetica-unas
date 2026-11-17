@@ -3019,3 +3019,108 @@ body.theme-noir .gold-card {
   animation: pulseDotGreen 2s infinite ease-in-out;
   margin-right: 4px;
 }
+
+/* ============================================================================
+   BANCO DE FOTOS Y PICKER DE IMÁGENES ILIMITADO
+   ============================================================================ */
+.photobank-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.photobank-card {
+  background: var(--card-bg);
+  border: 1px solid var(--gold-line);
+  border-radius: 14px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.04);
+}
+
+body.theme-noir .photobank-card {
+  border-color: #383340;
+}
+
+.photobank-thumb {
+  width: 100%;
+  height: 120px;
+  object-fit: cover;
+  background: var(--bg-soft);
+}
+
+.photobank-info {
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.photobank-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-main);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.photobank-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.photobank-btn {
+  font-size: 9.5px;
+  font-weight: 700;
+  padding: 3px 6px;
+  border-radius: 6px;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  background: var(--bg-soft);
+  color: var(--text-main);
+  cursor: pointer;
+  transition: transform 0.1s ease;
+}
+
+.photobank-btn:active {
+  transform: scale(0.95);
+}
+
+.photobank-btn.primary {
+  background: var(--accent-soft);
+  color: var(--accent-dark);
+  border-color: var(--gold-line);
+}
+
+.photobank-btn.danger {
+  color: #dc2626;
+  border-color: rgba(220, 38, 38, 0.2);
+}
+
+.photo-bank-picker-row {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 8px 0;
+  -webkit-overflow-scrolling: touch;
+}
+
+.photo-bank-picker-thumb {
+  width: 60px;
+  height: 60px;
+  border-radius: 10px;
+  object-fit: cover;
+  border: 2px solid transparent;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.15s ease;
+}
+
+.photo-bank-picker-thumb.selected {
+  border-color: var(--accent-primary);
+  transform: scale(1.05);
+}

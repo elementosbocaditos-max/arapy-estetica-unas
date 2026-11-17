@@ -1,4 +1,4 @@
-const CACHE_NAME = 'beauty-studio-v3-luminous';
+const CACHE_NAME = 'beauty-studio-v3.2';
 const ASSETS = [
   './',
   './index.html',

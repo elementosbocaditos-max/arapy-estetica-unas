@@ -121,6 +121,7 @@ const AppState = {
   appointments: [],
   clients: [],
   finances: [],
+  photoBank: [],
   inspo: [
     { id: 'inspo_1', title: 'Francesitas Rose Gold', category: 'Uñas Esculpidas', image: './assets/inspo-rose-french.jpg' },
     { id: 'inspo_2', title: 'Black & Gold Glam', category: 'Nail Art', image: './assets/inspo-black-gold.jpg' },
@@ -1984,6 +1985,26 @@ function renderPanelServices() {
                 <span>Nail Glam</span>
               </div>
             </div>
+
+            <!-- Selector Rápido desde el Banco de Fotos del Salón -->
+            ${
+              AppState.photoBank && AppState.photoBank.length > 0
+                ? `
+              <div style="margin-top: 10px;">
+                <label style="font-size: 11px; font-weight: 700; color: var(--gold-primary);">📸 Elegí de tu Banco de Fotos (${AppState.photoBank.length}):</label>
+                <div class="photo-bank-picker-row">
+                  ${AppState.photoBank
+                    .map(
+                      (p) => `
+                    <img src="${p.url}" alt="${p.title}" class="photo-bank-picker-thumb" onclick="window.pickServicePhoto('${p.url}')" title="${p.title}" />
+                  `
+                    )
+                    .join('')}
+                </div>
+              </div>
+            `
+                : ''
+            }
           </div>
 
           <div style="display: flex; gap: 8px;">
@@ -2099,7 +2120,7 @@ window.handleUploadServicePhoto = async (e) => {
   if (!file) return;
   showToast('⏳ Optimizando foto del trabajo...');
   try {
-    const dataUrl = await compressAndReadImage(file, 640, 0.85);
+    const dataUrl = await compressAndReadImage(file, 800, 0.82);
     const input = document.getElementById('srv-image-input');
     if (input) input.value = dataUrl;
     showToast('📸 ¡Foto cargada para el servicio!');
@@ -2165,6 +2186,15 @@ window.handleSaveService = async (e) => {
   const isEditing = AppState.editingServiceId !== null;
   const id = isEditing ? AppState.editingServiceId : `srv_${Date.now()}`;
 
+  // Auto-limpieza de Servicios Demo al agregar el primer servicio real
+  if (!isEditing) {
+    const demoServices = (AppState.services || []).filter((s) => s.isDemo === true);
+    for (const ds of demoServices) {
+      await DataStore.remove('services', ds.id);
+    }
+    AppState.services = (AppState.services || []).filter((s) => s.isDemo !== true);
+  }
+
   const serviceData = {
     id,
     name,
@@ -2173,7 +2203,8 @@ window.handleSaveService = async (e) => {
     duration,
     deposit,
     image,
-    active: true
+    active: true,
+    isDemo: false
   };
 
   if (isEditing) {
@@ -2220,7 +2251,7 @@ window.handleDeleteService = async (serviceId, serviceName) => {
 };
 
 // Helper para comprimir y convertir imágenes seleccionadas desde el celular
-function compressAndReadImage(file, maxWidth = 1080, quality = 0.85) {
+function compressAndReadImage(file, maxWidth = 800, quality = 0.82) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = (e) => {
@@ -2236,8 +2267,16 @@ function compressAndReadImage(file, maxWidth = 1080, quality = 0.85) {
         canvas.width = width;
         canvas.height = height;
         const ctx = canvas.getContext('2d');
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
         ctx.drawImage(img, 0, 0, width, height);
-        resolve(canvas.toDataURL('image/jpeg', quality));
+
+        // Intenta WebP primero para máxima compresión y carga ultrarrápida (<50KB), con fallback a JPEG
+        let dataUrl = canvas.toDataURL('image/webp', quality);
+        if (!dataUrl || !dataUrl.startsWith('data:image/webp')) {
+          dataUrl = canvas.toDataURL('image/jpeg', quality);
+        }
+        resolve(dataUrl);
       };
       img.onerror = reject;
       img.src = e.target.result;
@@ -2380,6 +2419,48 @@ function renderPanelPhotos() {
             Guardar Cambios del Banner
           </button>
         </form>
+
+        <!-- SECCIÓN 3: BANCO DE FOTOS DEL SALÓN (SIN LÍMITE DE CARGA) -->
+        <div class="form-card gold-card">
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px;">
+            <h3>🏛️ Banco de Fotos del Salón</h3>
+            <span class="gold-badge" style="font-size: 10px;">${(AppState.photoBank || []).length} fotos</span>
+          </div>
+          <p class="form-card-sub">
+            Subí todas las fotos que quieras desde tu celular. Las optimizamos automáticamente para que la app cargue en milisegundos sin límite de almacenamiento:
+          </p>
+
+          <input type="file" id="photobank-file-picker" accept="image/*" multiple style="display: none;" onchange="window.handleUploadToPhotoBank(event)" />
+          <button type="button" class="btn-upload-file btn-gold-shimmer" onclick="document.getElementById('photobank-file-picker').click()">
+            <span>📸</span>
+            <span>Subir Fotos al Banco (+ Sin Límite)</span>
+          </button>
+
+          <div class="photobank-grid">
+            ${(AppState.photoBank || []).map((p) => `
+              <div class="photobank-card">
+                <img src="${p.url}" alt="${p.title}" class="photobank-thumb" onerror="this.src='./assets/studio-nails.jpg'" />
+                <div class="photobank-info">
+                  <span class="photobank-title">${p.title}</span>
+                  <div class="photobank-actions">
+                    <button type="button" class="photobank-btn primary" onclick="window.setSplashPreset('${p.url}')" title="Usar como Portada">
+                      ⭐ Portada
+                    </button>
+                    <button type="button" class="photobank-btn primary" onclick="window.setBannerPreset('${p.url}')" title="Usar en Banner">
+                      🏷️ Banner
+                    </button>
+                    <button type="button" class="photobank-btn" onclick="window.addInspoFromBank('${p.url}', '${p.title}')" title="Publicar en Muro de Diseños">
+                      💅 Muro
+                    </button>
+                    <button type="button" class="photobank-btn danger" onclick="window.deleteFromPhotoBank('${p.id}')" title="Eliminar del banco">
+                      ✕
+                    </button>
+                  </div>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
       </div>
     </div>
   `;
@@ -3507,6 +3588,23 @@ async function startApp() {
   AppState.appointments = await DataStore.getAll('appointments');
   AppState.clients = await DataStore.getAll('clients');
   AppState.finances = await DataStore.getAll('finances');
+  AppState.photoBank = await DataStore.getAll('photoBank');
+
+  if (!AppState.photoBank || AppState.photoBank.length === 0) {
+    const DEFAULT_PHOTO_BANK = [
+      { id: 'pb_1', title: 'Modelo Francesa Luminous', url: './assets/splash-hero.jpg', category: 'Portada' },
+      { id: 'pb_2', title: 'Uñas Studio Kapping', url: './assets/studio-nails.jpg', category: 'Uñas' },
+      { id: 'pb_3', title: 'Francesitas Rose Gold', url: './assets/inspo-rose-french.jpg', category: 'Nail Art' },
+      { id: 'pb_4', title: 'Black & Gold Glam', url: './assets/inspo-black-gold.jpg', category: 'Nail Art' },
+      { id: 'pb_5', title: 'Balayage Caramelo & Brushing', url: './assets/service-hair-balayage.jpg', category: 'Peluquería' },
+      { id: 'pb_6', title: 'Corte Femenino de Autor', url: './assets/service-hair-cut.jpg', category: 'Peluquería' },
+      { id: 'pb_7', title: 'Salón Lounge Interior', url: './assets/studio-interior.jpg', category: 'Salón' }
+    ];
+    for (const p of DEFAULT_PHOTO_BANK) {
+      await DataStore.set('photoBank', p.id, p);
+    }
+    AppState.photoBank = DEFAULT_PHOTO_BANK;
+  }
   AppState.blockedSlots = await DataStore.getAll('blockedSlots');
 
   const upcomingDays = getUpcomingDays(10);
