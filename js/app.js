@@ -397,16 +397,9 @@ function renderSplash() {
         />
         <div class="splash-top-bar">
           <span class="gold-badge">✦ ${AppState.salon.name || 'Maison de Beauté'}</span>
-          <div style="display: flex; align-items: center; gap: 8px;">
-            <input type="file" id="cover-direct-picker" accept="image/*" style="display: none;" onchange="window.handleUploadSplashPhoto(event)" />
-            <button type="button" class="splash-change-cover-pill" onclick="document.getElementById('cover-direct-picker').click()" title="Cambiar foto de portada con fotos propias">
-              <span>📷</span>
-              <span>Cambiar Foto</span>
-            </button>
-            <button type="button" class="mirrored-icon-badge" onclick="navigateTo('panel')" title="Acceso Dueño" style="width: 36px; height: 36px; border-radius: 50%;">
-              ${Icons.lock}
-            </button>
-          </div>
+          <button type="button" class="mirrored-icon-badge" onclick="navigateTo('panel')" title="Acceso Dueño" style="width: 36px; height: 36px; border-radius: 50%;">
+            ${Icons.lock}
+          </button>
         </div>
         <div class="splash-fade-overlay"></div>
       </div>
@@ -2173,9 +2166,14 @@ function renderPanelSalon() {
               </div>
             </div>
             <input type="file" id="store-cover-picker" accept="image/*" style="display: none;" onchange="window.handleUploadSplashPhoto(event)" />
-            <button type="button" class="btn-primary-action btn-gold-shimmer" style="width: 100%;" onclick="document.getElementById('store-cover-picker').click()">
-              📷 Subir Mi Propia Foto de Portada
-            </button>
+            <div style="display: flex; gap: 8px;">
+              <button type="button" class="btn-primary-action btn-gold-shimmer" style="flex: 1;" onclick="document.getElementById('store-cover-picker').click()">
+                📷 Subir desde mi Celular
+              </button>
+              <button type="button" class="btn-secondary-action" style="padding: 10px 14px; font-size: 12px;" onclick="window.openPanelSubView('photos')" title="Ver Banco de Fotos">
+                🖼️ Galería
+              </button>
+            </div>
             <p style="font-size: 11px; color: var(--text-muted); margin-top: 6px; text-align: center;">
               Se optimiza automáticamente para cargar instantáneamente en cualquier celular.
             </p>
