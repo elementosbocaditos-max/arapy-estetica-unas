@@ -140,6 +140,7 @@ const AppState = {
   activeCategoryFilter: 'all',
 
   // Reserva de Clienta en curso
+  bookingStep: 1, // 1: Servicio, 2: Fecha & Horario, 3: Datos & Seña, 4: Confirmado
   bookingDate: '', // 'YYYY-MM-DD'
   bookingSlot: '', // '14:00'
   lastBookedAppt: null,
@@ -702,8 +703,9 @@ window.filterCategory = (catId) => {
 
 window.selectServiceAndBook = (serviceId) => {
   AppState.bookingDraft.serviceId = serviceId;
+  AppState.bookingStep = 2; // Salta directo a elegir fecha y horario como en Daniela Gimenez
   const srv = AppState.services.find((s) => s.id === serviceId);
-  showToast(`💅 Trabajo seleccionado: ${srv ? srv.name : ''}`);
+  showToast(`💅 Trabajo: ${srv ? srv.name : ''}. Elegí fecha y horario:`);
   navigateTo('booking');
 };
 
@@ -774,6 +776,7 @@ window.clearBookingInspo = () => {
 // PANTALLA 5: MI TURNO (PROCESO DE RESERVA NATIVO - PASO 3)
 // ----------------------------------------------------------------------------
 function renderBooking() {
+  const currentStep = AppState.bookingStep || 1;
   const selectedService = AppState.services.find((s) => s.id === AppState.bookingDraft.serviceId);
   const selectedAddonsList = (AppState.addons || []).filter((a) =>
     (AppState.bookingDraft.selectedAddonIds || []).includes(a.id)
@@ -783,203 +786,436 @@ function renderBooking() {
   const totalPrice = selectedService ? Number(selectedService.price || 0) + addonsTotal : 0;
   const totalDuration = selectedService ? Number(selectedService.duration || 60) + addonsDuration : 0;
 
-  const depositPercent = AppState.salon.depositPercent || 50;
-  const depositAmount = selectedService
-    ? Math.round((totalPrice * depositPercent) / 100)
-    : 0;
+  const depositPercent = AppState.salon.depositPercent !== undefined ? AppState.salon.depositPercent : 50;
+  const depositAmount = selectedService ? Math.round((totalPrice * depositPercent) / 100) : 0;
+  const balanceAtSalon = totalPrice - depositAmount;
 
   const upcomingDays = getUpcomingDays(10);
-  if (!AppState.bookingDate) {
+  if (!AppState.bookingDate && upcomingDays.length > 0) {
     AppState.bookingDate = upcomingDays[0].dateStr;
+  }
+
+  // Comprobar si hay datos previos guardados en localStorage
+  let savedName = '';
+  let savedPhone = '';
+  try {
+    savedName = localStorage.getItem('beauty_client_name') || localStorage.getItem('dg_client_name') || '';
+    savedPhone = localStorage.getItem('beauty_client_phone') || localStorage.getItem('dg_client_phone') || '';
+  } catch (e) {}
+
+  // Si ya se confirmó el turno, mostrar el Paso 4
+  if (currentStep === 4 && AppState.lastBookedAppt) {
+    return renderBookingStep4(AppState.lastBookedAppt);
   }
 
   return `
     <div class="screen-viewport">
       <header class="app-header">
         <div class="app-header-left">
-          <button type="button" class="header-back-btn" onclick="navigateTo('services')">${Icons.chevronLeft}</button>
+          <button type="button" class="header-back-btn" onclick="window.handleWizardBack()">${Icons.chevronLeft}</button>
           <div>
-            <h2 class="app-header-title">Mi Turno</h2>
-            <p style="font-size: 11px; color: var(--text-muted);">Completá tu reserva en simples pasos</p>
+            <h2 class="app-header-title">Mi Turno Online</h2>
+            <p style="font-size: 11px; color: var(--gold-primary); font-weight: 700;">
+              Paso ${currentStep} de 3 • ${currentStep === 1 ? 'Servicio' : currentStep === 2 ? 'Fecha y Horario' : 'Confirmar'}
+            </p>
           </div>
         </div>
       </header>
 
       <div class="booking-flow-container">
-        <!-- Paso 1: Servicio Seleccionado -->
-        <div class="step-box">
-          <div class="step-title">1. Trabajo a Realizar</div>
-          ${
-            selectedService
-              ? `
-            <div class="selected-service-summary">
-              <div style="display: flex; align-items: center; gap: 10px;">
-                <img src="${selectedService.image || './assets/studio-nails.jpg'}" alt="${selectedService.name}" style="width: 44px; height: 44px; border-radius: 10px; object-fit: cover;" onerror="this.src='./assets/studio-nails.jpg'" />
-                <div>
-                  <strong>${selectedService.name}</strong>
-                  <p style="font-size: 11.5px; color: var(--text-muted); margin-top: 1px;">
-                    ⏱️ ${selectedService.duration || 60} min • ${Number(selectedService.price).toLocaleString('es-AR')}
-                  </p>
-                </div>
-              </div>
-              <button type="button" class="btn-secondary-action" style="padding: 6px 10px; font-size: 11px;" onclick="navigateTo('services')">
-                Cambiar
-              </button>
-            </div>
+        <!-- Stepper Visual de 3 Pasos (Como en Daniela Gimenez) -->
+        <div class="booking-wizard-stepper">
+          <div class="stepper-step ${currentStep >= 1 ? 'active' : ''} ${currentStep > 1 ? 'done' : ''}" onclick="window.setBookingStep(1)">
+            <div class="step-num">${currentStep > 1 ? '✓' : '1'}</div>
+            <span>Servicio</span>
+          </div>
+          <div class="stepper-line ${currentStep >= 2 ? 'active' : ''}"></div>
+          <div class="stepper-step ${currentStep >= 2 ? 'active' : ''} ${currentStep > 2 ? 'done' : ''}" onclick="window.setBookingStep(2)">
+            <div class="step-num">${currentStep > 2 ? '✓' : '2'}</div>
+            <span>Horario</span>
+          </div>
+          <div class="stepper-line ${currentStep >= 3 ? 'active' : ''}"></div>
+          <div class="stepper-step ${currentStep >= 3 ? 'active' : ''}" onclick="window.setBookingStep(3)">
+            <div class="step-num">3</div>
+            <span>Confirmar</span>
+          </div>
+        </div>
 
-            ${AppState.bookingDraft.inspoTitle ? `
-              <div style="display: flex; align-items: center; justify-content: space-between; background: var(--accent-soft); border: 1.5px solid var(--accent-primary); border-radius: 12px; padding: 10px 12px; margin-top: 10px;">
+        <!-- ========================================== -->
+        <!-- PASO 1: SELECCIONAR SERVICIO & ADICIONALES -->
+        <!-- ========================================== -->
+        ${currentStep === 1 ? `
+          <div class="step-box gold-card">
+            <div class="step-title">
+              <span>💅 1. Trabajo a Realizar</span>
+            </div>
+            ${selectedService ? `
+              <div class="selected-service-summary" style="border: 1px solid var(--gold-line);">
                 <div style="display: flex; align-items: center; gap: 10px;">
-                  <img src="${AppState.bookingDraft.inspoImage || './assets/studio-nails.jpg'}" alt="Inspo" style="width: 42px; height: 42px; border-radius: 8px; object-fit: cover;" onerror="this.src='./assets/studio-nails.jpg'" />
+                  <img src="${selectedService.image || './assets/studio-nails.jpg'}" alt="${selectedService.name}" style="width: 48px; height: 48px; border-radius: 10px; object-fit: cover;" onerror="this.src='./assets/studio-nails.jpg'" />
                   <div>
-                    <span style="font-size: 10px; font-weight: 800; color: var(--accent-dark); text-transform: uppercase; letter-spacing: 0.05em;">💅 Look de Referencia Seleccionado</span>
-                    <div style="font-size: 12.5px; font-weight: 700; color: var(--text-main); line-height: 1.2;">${AppState.bookingDraft.inspoTitle}</div>
+                    <strong style="font-size: 13px; color: var(--text-main);">${selectedService.name}</strong>
+                    <p style="font-size: 11.5px; color: var(--text-muted); margin-top: 1px;">
+                      ⏱️ ${selectedService.duration || 60} min • ${Number(selectedService.price).toLocaleString('es-AR')}
+                    </p>
                   </div>
                 </div>
-                <button type="button" style="background: none; border: none; font-size: 11px; color: var(--accent-dark); font-weight: 700; cursor: pointer; padding: 4px;" onclick="window.clearBookingInspo()">✕ Quitar</button>
+                <button type="button" class="btn-secondary-action" style="padding: 6px 10px; font-size: 11px;" onclick="navigateTo('services')">
+                  Cambiar
+                </button>
               </div>
-            ` : ''}
 
-            <!-- Adicionales Opcionales (Upselling para aumentar ticket promedio) -->
-            <div style="margin-top: 14px; border-top: 1px dashed rgba(0,0,0,0.08); padding-top: 12px;">
-              <div style="display: flex; align-items: center; justify-content: space-between;">
-                <span style="font-size: 12px; font-weight: 700; color: var(--text-main);">✨ Sumar Adicionales al Turno:</span>
-                <span style="font-size: 11px; color: var(--accent-primary); font-weight: 600;">Opcional</span>
-              </div>
-              
-              <div class="addons-grid">
-                ${(AppState.addons || []).filter(a => a.active !== false).map(addon => {
-                  const isSelected = (AppState.bookingDraft.selectedAddonIds || []).includes(addon.id);
-                  return `
-                    <div class="addon-card-item ${isSelected ? 'selected' : ''}" onclick="window.toggleBookingAddon('${addon.id}')">
-                      <div class="addon-info-left">
-                        <div class="addon-checkbox">${isSelected ? '✓' : ''}</div>
-                        <div>
-                          <div class="addon-name">${addon.name}</div>
-                          <div class="addon-meta">+${addon.duration || 15} min</div>
-                        </div>
-                      </div>
-                      <div class="addon-price-tag">+${Number(addon.price).toLocaleString('es-AR')}</div>
+              ${AppState.bookingDraft.inspoTitle ? `
+                <div style="display: flex; align-items: center; justify-content: space-between; background: var(--accent-soft); border: 1.5px solid var(--accent-primary); border-radius: 12px; padding: 10px 12px; margin-top: 10px;">
+                  <div style="display: flex; align-items: center; gap: 10px;">
+                    <img src="${AppState.bookingDraft.inspoImage || './assets/studio-nails.jpg'}" alt="Inspo" style="width: 42px; height: 42px; border-radius: 8px; object-fit: cover;" onerror="this.src='./assets/studio-nails.jpg'" />
+                    <div>
+                      <span style="font-size: 10px; font-weight: 800; color: var(--accent-dark); text-transform: uppercase; letter-spacing: 0.05em;">💅 Look de Referencia Seleccionado</span>
+                      <div style="font-size: 12.5px; font-weight: 700; color: var(--text-main); line-height: 1.2;">${AppState.bookingDraft.inspoTitle}</div>
                     </div>
+                  </div>
+                  <button type="button" style="background: none; border: none; font-size: 11px; color: var(--accent-dark); font-weight: 700; cursor: pointer; padding: 4px;" onclick="window.clearBookingInspo()">✕ Quitar</button>
+                </div>
+              ` : ''}
+
+              <!-- Adicionales Opcionales -->
+              <div style="margin-top: 14px; border-top: 1px dashed rgba(0,0,0,0.08); padding-top: 12px;">
+                <div style="display: flex; align-items: center; justify-content: space-between;">
+                  <span style="font-size: 12px; font-weight: 700; color: var(--text-main);">✨ Sumar Adicionales al Turno:</span>
+                  <span style="font-size: 11px; color: var(--gold-primary); font-weight: 600;">Opcional</span>
+                </div>
+                
+                <div class="addons-grid">
+                  ${(AppState.addons || []).filter(a => a.active !== false).map(addon => {
+                    const isSelected = (AppState.bookingDraft.selectedAddonIds || []).includes(addon.id);
+                    return `
+                      <div class="addon-card-item ${isSelected ? 'selected' : ''}" onclick="window.toggleBookingAddon('${addon.id}')">
+                        <div class="addon-info-left">
+                          <div class="addon-checkbox">${isSelected ? '✓' : ''}</div>
+                          <div>
+                            <div class="addon-name">${addon.name}</div>
+                            <div class="addon-meta">+${addon.duration || 15} min</div>
+                          </div>
+                        </div>
+                        <div class="addon-price-tag">+${Number(addon.price).toLocaleString('es-AR')}</div>
+                      </div>
+                    `;
+                  }).join('')}
+                </div>
+
+                <!-- Resumen Dinámico de Totales -->
+                <div class="total-summary-card gold-card">
+                  <div class="total-summary-row">
+                    <span>${selectedService.name} (${selectedService.duration || 60} min):</span>
+                    <span>${Number(selectedService.price).toLocaleString('es-AR')}</span>
+                  </div>
+                  ${selectedAddonsList.map(a => `
+                    <div class="total-summary-row">
+                      <span>+ ${a.name} (${a.duration || 15} min):</span>
+                      <span>+${Number(a.price).toLocaleString('es-AR')}</span>
+                    </div>
+                  `).join('')}
+                  <div class="total-summary-row main">
+                    <span>Total Estimado (~${totalDuration} min):</span>
+                    <span style="color: var(--gold-primary);">${Number(totalPrice).toLocaleString('es-AR')}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="wizard-nav-strip">
+                <button type="button" class="btn-next btn-gold-shimmer" onclick="window.setBookingStep(2)">
+                  <span>Paso 2: Elegir Fecha y Horario</span>
+                  <span>→</span>
+                </button>
+              </div>
+            ` : `
+              <div style="text-align: center; padding: 20px 0;">
+                <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 12px;">Elegí el servicio que deseas realizarte:</p>
+                <button type="button" class="btn-primary-action btn-gold-shimmer" onclick="navigateTo('services')" style="width: 100%;">
+                  Ver Catálogo de Servicios
+                </button>
+              </div>
+            `}
+          </div>
+        ` : ''}
+
+        <!-- ============================================== -->
+        <!-- PASO 2: ELEGIR FECHA Y HORARIO (MAÑANA & TARDE) -->
+        <!-- ============================================== -->
+        ${currentStep === 2 ? `
+          <div class="step-box gold-card">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px;">
+              <div class="step-title" style="margin: 0;">
+                <span>📅 2. Selecciona Fecha y Horario</span>
+              </div>
+              <span class="gold-badge" style="font-size: 9.5px;">~${totalDuration} min</span>
+            </div>
+            <p style="font-size: 11.5px; color: var(--text-muted); margin-bottom: 10px;">
+              Atención con turno previo. Horarios sincronizados en tiempo real:
+            </p>
+            
+            <!-- Selector horizontal de días -->
+            <div class="dates-scroll-container">
+              ${upcomingDays.map((d) => `
+                <div class="calendar-day-card ${AppState.bookingDate === d.dateStr ? 'active' : ''}" onclick="window.selectBookingDate('${d.dateStr}')">
+                  <span class="cal-weekday">${d.weekday}</span>
+                  <span class="cal-day-num">${d.dayNum}</span>
+                  <span class="cal-month">${d.month}</span>
+                </div>
+              `).join('')}
+            </div>
+
+            <!-- Grilla interactiva de horarios por Turno Mañana y Tarde -->
+            <div style="margin-top: 14px;">
+              <!-- TURNO MAÑANA -->
+              <div class="slot-section-header">
+                <span class="icon">🌅</span>
+                <span>Turno Mañana (09:00 a 13:00)</span>
+              </div>
+              <div class="slots-interactive-grid">
+                ${['09:00', '10:00', '11:00', '12:00', '13:00'].map((slot) => {
+                  const occupied = isSlotOccupied(AppState.bookingDate, slot);
+                  const isSelected = AppState.bookingSlot === slot;
+
+                  if (occupied) {
+                    return `
+                      <button type="button" class="slot-btn occupied" disabled title="Horario ya reservado">
+                        <span>${slot}</span>
+                        <span style="font-size: 8.5px; font-weight: 800;">Ocupado</span>
+                      </button>
+                    `;
+                  }
+
+                  return `
+                    <button type="button" class="slot-btn ${isSelected ? 'active' : ''}" onclick="window.selectBookingSlot('${slot}')">
+                      <span>${slot}</span>
+                      <span style="font-size: 9px; opacity: 0.85;">Disponible</span>
+                    </button>
                   `;
                 }).join('')}
               </div>
 
-              <!-- Resumen Dinámico de Totales -->
-              <div class="total-summary-card">
-                <div class="total-summary-row">
-                  <span>${selectedService.name} (${selectedService.duration || 60} min):</span>
-                  <span>${Number(selectedService.price).toLocaleString('es-AR')}</span>
-                </div>
-                ${selectedAddonsList.map(a => `
-                  <div class="total-summary-row">
-                    <span>+ ${a.name} (${a.duration || 15} min):</span>
-                    <span>+${Number(a.price).toLocaleString('es-AR')}</span>
-                  </div>
-                `).join('')}
-                <div class="total-summary-row main">
-                  <span>Total Estimado (~${totalDuration} min):</span>
-                  <span>${Number(totalPrice).toLocaleString('es-AR')}</span>
-                </div>
+              <!-- TURNO TARDE -->
+              <div class="slot-section-header" style="margin-top: 16px;">
+                <span class="icon">🌇</span>
+                <span>Turno Tarde (14:00 a 20:00)</span>
               </div>
-            </div>
-          `
-              : `
-            <div style="text-align: center; padding: 16px 0;">
-              <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 10px;">No tenés un trabajo seleccionado todavía.</p>
-              <button type="button" class="btn-book-service" onclick="navigateTo('services')">Ver Catálogo y Elegir Trabajo</button>
-            </div>
-          `
-          }
-        </div>
+              <div class="slots-interactive-grid">
+                ${['14:00', '15:00', '16:00', '17:00', '18:00', '19:00', '20:00'].map((slot) => {
+                  const occupied = isSlotOccupied(AppState.bookingDate, slot);
+                  const isSelected = AppState.bookingSlot === slot;
 
-        <!-- Paso 2: Día y Horario -->
-        <div class="step-box">
-          <div class="step-title">2. Elegí Fecha y Horario Disponible</div>
-          <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 8px;">Días disponibles en tiempo real con la agenda del salón:</p>
-          
-          <!-- Selector horizontal de días reales -->
-          <div class="dates-scroll-container">
-            ${upcomingDays
-              .map(
-                (d) => `
-              <div class="calendar-day-card ${AppState.bookingDate === d.dateStr ? 'active' : ''}" onclick="window.selectBookingDate('${d.dateStr}')">
-                <span class="cal-weekday">${d.weekday}</span>
-                <span class="cal-day-num">${d.dayNum}</span>
-                <span class="cal-month">${d.month}</span>
-              </div>
-            `
-              )
-              .join('')}
-          </div>
+                  if (occupied) {
+                    return `
+                      <button type="button" class="slot-btn occupied" disabled title="Horario ya reservado">
+                        <span>${slot}</span>
+                        <span style="font-size: 8.5px; font-weight: 800;">Ocupado</span>
+                      </button>
+                    `;
+                  }
 
-          <div style="margin-top: 12px;">
-            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
-              <span style="font-size: 12px; font-weight: 700; color: var(--text-main);">Horarios para ${formatDateDisplay(AppState.bookingDate)}:</span>
-              <span style="font-size: 11px; color: var(--accent-primary); font-weight: 700;">${AppState.bookingSlot ? `${AppState.bookingSlot} hs seleccionado` : 'Tocá un horario'}</span>
-            </div>
-
-            <!-- Grilla interactiva de horarios libres / ocupados -->
-            <div class="slots-interactive-grid">
-              ${SALON_SLOTS.map((slot) => {
-                const occupied = isSlotOccupied(AppState.bookingDate, slot);
-                const isSelected = AppState.bookingSlot === slot;
-
-                if (occupied) {
                   return `
-                    <button type="button" class="slot-btn occupied" disabled title="Horario ya reservado">
+                    <button type="button" class="slot-btn ${isSelected ? 'active' : ''}" onclick="window.selectBookingSlot('${slot}')">
                       <span>${slot}</span>
-                      <span style="font-size: 9px; font-weight: 800;">Ocupado</span>
+                      <span style="font-size: 9px; opacity: 0.85;">Disponible</span>
                     </button>
                   `;
-                }
+                }).join('')}
+              </div>
+            </div>
 
-                return `
-                  <button type="button" class="slot-btn ${isSelected ? 'active' : ''}" onclick="window.selectBookingSlot('${slot}')">
-                    <span>${slot}</span>
-                    <span style="font-size: 9.5px; opacity: 0.85;">Disponible</span>
-                  </button>
-                `;
-              }).join('')}
+            <!-- Previsualización del horario elegido -->
+            ${AppState.bookingSlot ? `
+              <div style="margin-top: 14px; background: rgba(197, 155, 39, 0.08); border: 1px solid var(--gold-line); border-radius: 12px; padding: 10px 14px; display: flex; align-items: center; justify-content: space-between;">
+                <div>
+                  <span style="font-size: 10px; font-weight: 800; color: var(--gold-primary); text-transform: uppercase;">Turno Seleccionado</span>
+                  <div style="font-size: 13px; font-weight: 700; color: var(--text-main);">
+                    📅 ${formatDateDisplay(AppState.bookingDate)} • ⏰ ${AppState.bookingSlot} hs
+                  </div>
+                </div>
+                <span class="gold-badge" style="font-size: 10px;">Listo</span>
+              </div>
+            ` : ''}
+
+            <!-- Navegación del Paso 2 -->
+            <div class="wizard-nav-strip">
+              <button type="button" class="btn-back" onclick="window.setBookingStep(1)">
+                <span>← Servicio</span>
+              </button>
+              <button type="button" class="btn-next btn-gold-shimmer" ${!AppState.bookingSlot ? 'disabled' : ''} onclick="window.handleAdvanceToStep3()">
+                <span>Paso 3: Confirmar Turno</span>
+                <span>→</span>
+              </button>
             </div>
           </div>
-        </div>
+        ` : ''}
 
-        <!-- Paso 3: Datos de la Clienta -->
-        <div class="step-box">
-          <div class="step-title">3. Tus Datos de Contacto</div>
-          <p style="font-size: 11.5px; color: var(--text-muted); margin-bottom: 10px;">Completá tus datos para que la dueña te guarde en su agenda:</p>
-          <div class="form-group-clean">
-            <label>Tu Nombre y Apellido</label>
-            <input type="text" placeholder="Ej: Valentina Gómez" id="client-name-input" value="${AppState.bookingDraft.clientName || ''}" oninput="AppState.bookingDraft.clientName=this.value" />
-          </div>
-          <div class="form-group-clean">
-            <label>Tu Teléfono / WhatsApp</label>
-            <input type="tel" placeholder="Ej: 11 2345 6789" id="client-phone-input" value="${AppState.bookingDraft.clientPhone || ''}" oninput="AppState.bookingDraft.clientPhone=this.value" />
-          </div>
-        </div>
-
-        <!-- Paso 4: Seña y WhatsApp -->
-        <div class="step-box">
-          <div class="step-title">4. Seña del ${depositPercent}% y Confirmación</div>
-          <div class="deposit-info-box">
-            <span style="font-size: 10px; font-weight: 800; color: var(--accent-dark); letter-spacing: 0.08em; text-transform: uppercase;">
-              Monto de Seña para congelar tu turno
-            </span>
-            <div class="deposit-amount-highlight">$${Number(depositAmount).toLocaleString('es-AR')}</div>
-            <p style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">
-              Transferí al siguiente Alias de Mercado Pago / Banco:
+        <!-- ============================================== -->
+        <!-- PASO 3: CONFIRMAR DATOS, RESUMEN & SEÑA       -->
+        <!-- ============================================== -->
+        ${currentStep === 3 ? `
+          <div class="step-box gold-card">
+            <div class="step-title">
+              <span>✍️ 3. Confirma tus Datos de Contacto</span>
+            </div>
+            <p style="font-size: 11.5px; color: var(--text-muted); margin-bottom: 12px;">
+              Te enviaremos la confirmación directa a tu WhatsApp:
             </p>
-            <div class="alias-copy-row">
-              <div class="alias-box">${AppState.salon.alias || 'TU.ALIAS.MP'}</div>
-              <button type="button" class="btn-copy-alias" onclick="window.copyAlias()">Copiar</button>
+
+            <!-- Botón de Auto-completado rápido si ya reservó antes (Como en Daniela Gimenez) -->
+            ${(savedName && savedPhone) ? `
+              <button type="button" class="btn-quick-autofill" onclick="window.applySavedClientData('${savedName}', '${savedPhone}')">
+                <div>
+                  <span>✨ Usar mis datos anteriores:</span>
+                  <strong style="margin-left: 4px;">${savedName} (${savedPhone})</strong>
+                </div>
+                <span style="font-size: 10.5px; text-decoration: underline;">Completar</span>
+              </button>
+            ` : ''}
+
+            <div class="form-group-clean">
+              <label>Tu Nombre y Apellido</label>
+              <input type="text" placeholder="Ej: Valentina Gómez" id="client-name-input" value="${AppState.bookingDraft.clientName || savedName || ''}" oninput="AppState.bookingDraft.clientName=this.value" required />
             </div>
-            ${AppState.salon.aliasHolder ? `<p style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">Titular: <strong>${AppState.salon.aliasHolder}</strong></p>` : ''}
+
+            <div class="form-group-clean">
+              <label>Tu Teléfono de WhatsApp</label>
+              <input type="tel" placeholder="Ej: 11 2345 6789" id="client-phone-input" value="${AppState.bookingDraft.clientPhone || savedPhone || ''}" oninput="AppState.bookingDraft.clientPhone=this.value" required />
+            </div>
+
+            <div class="form-group-clean">
+              <label>Notas o Preferencias (Opcional)</label>
+              <textarea id="client-notes-input" rows="2" placeholder="Ej: Alergia a olores fuertes, uñas frágiles, o detalles para la profesional...">${AppState.bookingDraft.clientNotes || ''}</textarea>
+            </div>
+
+            <!-- Resumen Completo del Turno & Seña -->
+            <div class="deposit-info-box gold-card" style="margin-top: 14px;">
+              <span style="font-size: 10px; font-weight: 800; color: var(--gold-primary); letter-spacing: 0.08em; text-transform: uppercase;">
+                Resumen de Reserva & Seña Obligatoria
+              </span>
+              <div style="font-size: 14px; font-weight: 800; color: var(--text-main); margin-top: 4px;">
+                ${selectedService ? selectedService.name : 'Servicio'}
+              </div>
+              <div style="font-size: 12px; color: var(--gold-primary); font-weight: 700; margin-top: 2px;">
+                📅 ${formatDateDisplay(AppState.bookingDate)} a las ${AppState.bookingSlot} hs (~${totalDuration} min)
+              </div>
+
+              <div style="display: flex; justify-content: space-between; border-top: 1px dashed rgba(0,0,0,0.08); margin-top: 10px; padding-top: 8px; font-size: 12px;">
+                <span>Total del Servicio:</span>
+                <strong>${Number(totalPrice).toLocaleString('es-AR')}</strong>
+              </div>
+              <div style="display: flex; justify-content: space-between; font-size: 12px; color: #16a34a; font-weight: 700;">
+                <span>Seña Requerida (${depositPercent}%):</span>
+                <span>+${Number(depositAmount).toLocaleString('es-AR')}</span>
+              </div>
+              <div style="display: flex; justify-content: space-between; font-size: 12px; color: var(--text-muted); padding-bottom: 8px; border-bottom: 1px dashed rgba(0,0,0,0.08);">
+                <span>Saldo en el Salón:</span>
+                <span>${Number(balanceAtSalon).toLocaleString('es-AR')}</span>
+              </div>
+
+              <p style="font-size: 11.5px; color: var(--text-muted); margin-top: 8px;">
+                Congelá tu turno transfiriendo la seña al siguiente Alias:
+              </p>
+              <div class="alias-copy-row">
+                <div class="alias-box">${AppState.salon.alias || 'MAISON.BEAUTE.MP'}</div>
+                <button type="button" class="btn-copy-alias" onclick="window.copyAlias()">Copiar</button>
+              </div>
+              ${AppState.salon.aliasHolder ? `<p style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">Titular: <strong>${AppState.salon.aliasHolder}</strong></p>` : ''}
+            </div>
+
+            <!-- Botones de Acción del Paso 3 -->
+            <div class="wizard-nav-strip">
+              <button type="button" class="btn-back" onclick="window.setBookingStep(2)">
+                <span>← Horario</span>
+              </button>
+              <button type="button" class="btn-next btn-gold-shimmer" onclick="window.confirmBookingWhatsapp()">
+                <span>Confirmar y Abrir WhatsApp</span>
+                <span>📲</span>
+              </button>
+            </div>
+          </div>
+        ` : ''}
+      </div>
+    </div>
+  `;
+}
+
+// ============================================================================
+// PASO 4: PANTALLA DE TURNO CONFIRMADO (ESTILO DANIELA GIMENEZ ELEVADO)
+// ============================================================================
+function renderBookingStep4(appt) {
+  const gCalUrl = getGoogleCalendarUrl(appt);
+  const salonPhone = (AppState.salon.phone || '5491123456789').replace(/\D/g, '');
+  const code = appt.code || appt.id.replace('appt_', 'MB-');
+
+  const waText = encodeURIComponent(
+    `¡Hola ${AppState.salon.name || 'Maison de Beauté'}! Agendé mi turno para ${appt.serviceName} el día ${appt.date} a las ${appt.slot} hs.\n\n` +
+    `🏷️ *Código de Turno:* ${code}\n` +
+    `👤 *Clienta:* ${appt.clientName}\n` +
+    `💰 *Total:* ${Number(appt.servicePrice).toLocaleString('es-AR')}\n` +
+    `💳 *Seña requerida:* ${Number(appt.depositAmount).toLocaleString('es-AR')}\n\n` +
+    `Adjunto comprobante de transferencia para congelar mi lugar. ¡Muchas gracias!`
+  );
+  const waUrl = `https://wa.me/${salonPhone}?text=${waText}`;
+
+  return `
+    <div class="screen-viewport">
+      <header class="app-header">
+        <div class="app-header-left">
+          <div class="mirrored-icon-badge" style="width: 32px; height: 32px; font-size: 14px;">✨</div>
+          <h2 class="app-header-title">¡Turno Confirmado!</h2>
+        </div>
+      </header>
+
+      <div class="booking-flow-container">
+        <div class="confirmation-card-hero gold-card">
+          <div class="confirmation-badge-circle">✓</div>
+          <span class="gold-badge" style="font-size: 10px; margin-bottom: 6px;">¡Turno Agendado con Éxito!</span>
+          
+          <h2 style="font-size: 22px; font-weight: 800; color: var(--text-main); margin-top: 6px;">
+            Te esperamos, ${appt.clientName}
+          </h2>
+          <p style="font-size: 12.5px; color: var(--text-muted); max-width: 320px; margin: 4px auto 10px;">
+            Tu turno ya fue reservado en nuestra agenda. Enviá el comprobante de la seña por WhatsApp para confirmarlo:
+          </p>
+
+          <div class="confirmation-code-box">
+            Código: ${code}
           </div>
 
-          <button type="button" class="btn-confirm-whatsapp" onclick="window.confirmBookingWhatsapp()">
+          <!-- Resumen del Servicio -->
+          <div style="background: var(--card-bg); border: 1px solid rgba(0,0,0,0.06); border-radius: 14px; padding: 12px 14px; text-align: left; margin: 12px 0;">
+            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px dashed rgba(0,0,0,0.08); padding-bottom: 8px;">
+              <div>
+                <strong style="font-size: 13.5px; color: var(--text-main);">${appt.serviceName}</strong>
+                <div style="font-size: 11.5px; color: var(--gold-primary); font-weight: 700;">
+                  📅 ${formatDateDisplay(appt.date)} • ⏰ ${appt.slot} hs (~${appt.serviceDuration || 60} min)
+                </div>
+              </div>
+              <strong style="font-size: 15px; color: var(--text-main);">${Number(appt.servicePrice).toLocaleString('es-AR')}</strong>
+            </div>
+
+            <div style="display: flex; justify-content: space-between; font-size: 12px; margin-top: 8px; color: #16a34a; font-weight: 700;">
+              <span>Seña requerida:</span>
+              <span>+${Number(appt.depositAmount).toLocaleString('es-AR')}</span>
+            </div>
+          </div>
+
+          <!-- Botón Principal: WhatsApp -->
+          <a href="${waUrl}" target="_blank" class="btn-primary-action btn-gold-shimmer" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; background: #16a34a; text-decoration: none; padding: 14px; border-radius: 14px; font-size: 13px; font-weight: 800; color: #fff;">
             <span>${Icons.whatsapp}</span>
-            <span>Confirmar y Enviar Turno por WhatsApp</span>
+            <span>Enviar Comprobante por WhatsApp</span>
+          </a>
+
+          <!-- Botón Secundario: Google Calendar -->
+          <a href="${gCalUrl}" target="_blank" class="btn-secondary-action" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; text-decoration: none; margin-top: 8px; padding: 12px; border-radius: 14px; font-size: 12px; font-weight: 700;">
+            <span>📅</span>
+            <span>Agregar a mi Google Calendar</span>
+          </a>
+
+          <!-- Botón Volver -->
+          <button type="button" class="btn-secondary-action" style="width: 100%; margin-top: 8px; border: none; background: none; font-size: 11.5px; color: var(--text-muted); cursor: pointer;" onclick="window.finishBookingAndReset()">
+            ← Agendar otro turno o Volver al Inicio
           </button>
         </div>
       </div>
@@ -987,9 +1223,73 @@ function renderBooking() {
   `;
 }
 
-// ----------------------------------------------------------------------------
-// PANTALLA 6: PANEL DEL DUEÑO (MINIMALISTA MODERNO - ACCESO Y SUBVISTAS)
-// ----------------------------------------------------------------------------
+window.setBookingStep = (step) => {
+  if (step === 2 && !AppState.bookingDraft.serviceId) {
+    showToast('⚠️ Primero elegí un servicio');
+    return;
+  }
+  if (step === 3 && (!AppState.bookingDate || !AppState.bookingSlot)) {
+    showToast('⚠️ Primero elegí fecha y horario');
+    return;
+  }
+  AppState.bookingStep = step;
+  renderApp();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+};
+
+window.handleWizardBack = () => {
+  const step = AppState.bookingStep || 1;
+  if (step === 1) {
+    navigateTo('services');
+  } else if (step === 2) {
+    AppState.bookingStep = 1;
+    renderApp();
+  } else if (step === 3) {
+    AppState.bookingStep = 2;
+    renderApp();
+  } else {
+    navigateTo('home');
+  }
+};
+
+window.handleAdvanceToStep3 = () => {
+  if (!AppState.bookingSlot) {
+    showToast('⚠️ Elegí un horario disponible para continuar');
+    return;
+  }
+  AppState.bookingStep = 3;
+  renderApp();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+};
+
+window.applySavedClientData = (name, phone) => {
+  AppState.bookingDraft.clientName = name;
+  AppState.bookingDraft.clientPhone = phone;
+  const nameInput = document.getElementById('client-name-input');
+  const phoneInput = document.getElementById('client-phone-input');
+  if (nameInput) nameInput.value = name;
+  if (phoneInput) phoneInput.value = phone;
+  showToast('✨ Datos completados automáticamente');
+};
+
+window.finishBookingAndReset = () => {
+  AppState.bookingStep = 1;
+  AppState.bookingDraft = {
+    serviceId: null,
+    inspoId: null,
+    inspoTitle: null,
+    inspoImage: null,
+    date: null,
+    slot: null,
+    clientName: '',
+    clientPhone: '',
+    clientNotes: '',
+    selectedAddonIds: []
+  };
+  AppState.bookingSlot = '';
+  navigateTo('home');
+};
+
 function renderPanel() {
   // Si no está desbloqueado, mostrar pantalla de PIN
   if (!AppState.isOwnerUnlocked) {
@@ -1579,10 +1879,6 @@ function renderBlockSlotForm() {
 window.selectBookingDate = (dateStr) => {
   AppState.bookingDate = dateStr;
   AppState.bookingSlot = '';
-  AppState.bookingDraft.selectedAddonIds = [];
-  AppState.bookingDraft.inspoId = null;
-  AppState.bookingDraft.inspoTitle = null;
-  AppState.bookingDraft.inspoImage = null;
   renderApp();
 };
 
@@ -3556,31 +3852,45 @@ window.confirmBookingWhatsapp = async () => {
   const currentService = AppState.services.find((s) => s.id === AppState.bookingDraft.serviceId);
   if (!currentService) {
     showToast('⚠️ Por favor seleccioná un servicio del catálogo');
-    navigateTo('services');
+    AppState.bookingStep = 1;
+    renderApp();
     return;
   }
 
   if (!AppState.bookingDate || !AppState.bookingSlot) {
     showToast('⚠️ Por favor elegí una fecha y un horario disponible');
+    AppState.bookingStep = 2;
+    renderApp();
     return;
   }
 
   const nameInput = document.getElementById('client-name-input')?.value.trim();
   const phoneInput = document.getElementById('client-phone-input')?.value.trim();
+  const notesInput = document.getElementById('client-notes-input')?.value.trim();
   const name = nameInput || AppState.bookingDraft.clientName;
   const phone = phoneInput || AppState.bookingDraft.clientPhone;
+  const notes = notesInput || AppState.bookingDraft.clientNotes || '';
 
   if (!name || !phone) {
     showToast('⚠️ Por favor ingresá tu nombre y teléfono de contacto');
     return;
   }
 
-  // Anti-solapamiento: verificar si el horario ya está ocupado
+  // Anti-solapamiento estricto en tiempo real (Como en Daniela Gimenez)
   if (isSlotOccupied(AppState.bookingDate, AppState.bookingSlot)) {
-    showToast('⚠️ Ese horario acaba de ser ocupado. Por favor elegí otro.');
+    alert(`Lo sentimos, el horario que habías elegido (${AppState.bookingSlot} hs) ya no se encuentra disponible. Por favor elige otro horario.`);
+    AppState.bookingStep = 2;
     renderApp();
     return;
   }
+
+  // Guardar en localStorage para próximas reservas (Como en Daniela Gimenez)
+  try {
+    localStorage.setItem('beauty_client_name', name);
+    localStorage.setItem('beauty_client_phone', phone);
+    localStorage.setItem('dg_client_name', name);
+    localStorage.setItem('dg_client_phone', phone);
+  } catch (e) {}
 
   const selectedAddonsList = (AppState.addons || []).filter((a) =>
     (AppState.bookingDraft.selectedAddonIds || []).includes(a.id)
@@ -3590,15 +3900,20 @@ window.confirmBookingWhatsapp = async () => {
   const totalPrice = (Number(currentService.price) || 0) + addonsTotal;
   const totalDuration = (Number(currentService.duration) || 60) + addonsDuration;
 
-  const depositPercent = AppState.salon.depositPercent || 50;
+  const depositPercent = AppState.salon.depositPercent !== undefined ? AppState.salon.depositPercent : 50;
   const depositAmount = Math.round((totalPrice * depositPercent) / 100);
 
+  // Código único de turno alfanumérico
+  const uniqueCode = 'MB-' + Math.floor(1000 + Math.random() * 9000);
   const apptId = 'appt_' + Date.now();
+
   const newAppt = {
     id: apptId,
+    code: uniqueCode,
     clientId: '',
     clientName: name,
     clientPhone: phone,
+    clientNotes: notes,
     serviceId: currentService.id,
     serviceName: currentService.name,
     servicePrice: totalPrice,
@@ -3615,14 +3930,14 @@ window.confirmBookingWhatsapp = async () => {
     createdAt: new Date().toISOString()
   };
 
-  // Crear o actualizar automáticamente la ficha de la clienta
+  // Crear o actualizar automáticamente la ficha de la clienta en el CRM
   let client = (AppState.clients || []).find((c) => c.phone && c.phone === phone);
   if (!client) {
     client = {
       id: 'cli_' + Date.now(),
       name: name,
       phone: phone,
-      notes: '',
+      notes: notes,
       history: [],
       totalSpent: 0,
       createdAt: new Date().toISOString()
@@ -3631,10 +3946,11 @@ window.confirmBookingWhatsapp = async () => {
   client.history = client.history || [];
   client.history.push({
     apptId: apptId,
+    code: uniqueCode,
     serviceName: currentService.name,
     date: AppState.bookingDate,
     slot: AppState.bookingSlot,
-    price: Number(currentService.price) || 0
+    price: totalPrice
   });
   newAppt.clientId = client.id;
 
@@ -3650,289 +3966,41 @@ window.confirmBookingWhatsapp = async () => {
     AppState.clients.push(client);
   }
 
-  // Armar mensaje para WhatsApp
+  AppState.lastBookedAppt = newAppt;
+  AppState.bookingStep = 4; // Transición inmediata al Paso 4 de confirmación
+
+  // Generar y abrir WhatsApp
+  const salonPhone = (AppState.salon.phone || '5491123456789').replace(/\D/g, '');
   const dateFormatted = formatDateDisplay(AppState.bookingDate);
   const addonsText = selectedAddonsList.length > 0
     ? `\n➕ *Adicionales:* ${selectedAddonsList.map((a) => `${a.name} (+${Number(a.price).toLocaleString('es-AR')})`).join(', ')}`
     : '';
 
   const inspoText = AppState.bookingDraft.inspoTitle
-    ? `💅 *Look de Referencia:* ${AppState.bookingDraft.inspoTitle}\n`
+    ? `\n💅 *Look de Referencia:* ${AppState.bookingDraft.inspoTitle}`
     : '';
 
-  const text =
-    `¡Hola! Quiero confirmar mi turno en ${AppState.salon.name || 'el Salón'}:\n\n` +
-    `✨ *Servicio:* ${currentService.name}\n` +
-    inspoText +
-    (addonsText ? `${addonsText}\n` : '') +
-    `📅 *Fecha:* ${dateFormatted}\n` +
-    `⏰ *Horario:* ${AppState.bookingSlot} hs (~${totalDuration} min)\n` +
+  const notesText = notes ? `\n📝 *Notas:* ${notes}` : '';
+
+  const msg =
+    `¡Hola ${AppState.salon.name || 'Maison de Beauté'}! Agendé mi turno online:\n\n` +
+    `🏷️ *Código de Turno:* ${uniqueCode}\n` +
     `👤 *Clienta:* ${name}\n` +
-    `📱 *Teléfono:* ${phone}\n` +
-    `💵 *Total:* ${Number(totalPrice).toLocaleString('es-AR')}\n` +
+    `📱 *WhatsApp:* ${phone}\n` +
+    `💅 *Servicio:* ${currentService.name}${addonsText}${inspoText}${notesText}\n` +
+    `📅 *Fecha:* ${dateFormatted}\n` +
+    `⏰ *Horario:* ${AppState.bookingSlot} hs (~${totalDuration} min)\n\n` +
+    `💰 *Total estimado:* ${Number(totalPrice).toLocaleString('es-AR')}\n` +
     `💳 *Seña requerida (${depositPercent}%):* ${Number(depositAmount).toLocaleString('es-AR')}\n` +
-    `📌 *Alias de pago:* ${AppState.salon.alias || 'TU.ALIAS.MP'}\n\n` +
-    `Adjunto mi comprobante de transferencia para congelar el turno. ¡Gracias!`;
+    `🏦 *Alias:* ${AppState.salon.alias || 'MAISON.BEAUTE.MP'}\n\n` +
+    `Te adjunto el comprobante de transferencia para congelar mi lugar. ¡Muchas gracias!`;
 
-  const salonPhone = (AppState.salon.phone || '').replace(/\D/g, '');
-  const url = salonPhone
-    ? `https://wa.me/${salonPhone}?text=${encodeURIComponent(text)}`
-    : `https://wa.me/?text=${encodeURIComponent(text)}`;
+  const waUrl = `https://wa.me/${salonPhone}?text=${encodeURIComponent(msg)}`;
+  window.open(waUrl, '_blank');
 
-  window.open(url, '_blank');
-  showToast('🎉 ¡Turno agendado con éxito! Abriendo WhatsApp...');
-  AppState.lastBookedAppt = newAppt;
-  AppState.isBookingSuccessModalOpen = true;
-
-  // Reset del slot elegido para la siguiente reserva
-  AppState.bookingSlot = '';
   renderApp();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
 };
-
-// ----------------------------------------------------------------------------
-// RENDERIZADOR MAESTRO DE LA APLICACIÓN
-// ----------------------------------------------------------------------------
-
-function getGoogleCalendarUrl(appt) {
-  if (!appt || !appt.date || !appt.slot) return '#';
-  const salonName = AppState.salon.name || 'Salón de Belleza';
-  const title = `Turno en ${salonName}: ${appt.serviceName}`;
-  
-  // Formato fecha y hora: YYYYMMDDTHHmmss
-  const cleanDate = appt.date.replace(/-/g, '');
-  const [hours, mins] = appt.slot.split(':');
-  const duration = Number(appt.serviceDuration) || 60;
-  
-  const startH = hours.padStart(2, '0');
-  const startM = (mins || '00').padStart(2, '0');
-  
-  // Calcular hora de fin
-  const totalMin = parseInt(startH, 10) * 60 + parseInt(startM, 10) + duration;
-  const endH = String(Math.floor(totalMin / 60)).padStart(2, '0');
-  const endM = String(totalMin % 60).padStart(2, '0');
-  
-  const dates = `${cleanDate}T${startH}${startM}00/${cleanDate}T${endH}${endM}00`;
-  const location = AppState.salon.address || '';
-  const details = `Turno agendado en ${salonName}.\nServicio: ${appt.serviceName}\nDuración: ~${duration} min.\nSeña: ${Number(appt.depositAmount || 0).toLocaleString('es-AR')}\nAlias: ${AppState.salon.alias || ''}`;
-  
-  return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(title)}&dates=${dates}&details=${encodeURIComponent(details)}&location=${encodeURIComponent(location)}`;
-}
-
-function renderBookingSuccessModal() {
-  const appt = AppState.lastBookedAppt;
-  if (!appt) return '';
-
-  const gCalUrl = getGoogleCalendarUrl(appt);
-
-  return `
-    <div class="booking-success-overlay">
-      <div class="booking-success-modal">
-        <div class="success-icon-badge">✨</div>
-        <h3 style="font-size: 18px; font-weight: 800; color: var(--text-main); margin-bottom: 4px;">¡Turno Agendado con Éxito!</h3>
-        <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 14px;">
-          Tu solicitud fue enviada por WhatsApp a la dueña del salón para confirmar la seña.
-        </p>
-
-        <div class="success-summary-box">
-          <div style="font-size: 14px; font-weight: 800; color: var(--text-main); margin-bottom: 2px;">${appt.serviceName}</div>
-          <div style="font-size: 12px; color: var(--accent-dark); font-weight: 700; margin-bottom: 4px;">
-            📅 ${formatDateDisplay(appt.date)} • ⏰ ${appt.slot} hs (~${appt.serviceDuration || 60}m)
-          </div>
-          ${appt.addons && appt.addons.length > 0 ? `
-            <div style="font-size: 11px; color: var(--text-main); margin-bottom: 4px;">
-              ✨ Adicionales: <strong>${appt.addons.map(a => a.name).join(', ')}</strong>
-            </div>
-          ` : ''}
-          <div style="font-size: 11.5px; color: var(--text-muted); margin-top: 2px;">
-            📍 ${AppState.salon.address || 'Local del Salón'}
-          </div>
-          <div style="font-size: 11.5px; color: var(--text-muted); margin-top: 4px; padding-top: 4px; border-top: 1px dashed rgba(0,0,0,0.08);">
-            💳 Seña: <strong>${Number(appt.depositAmount).toLocaleString('es-AR')}</strong> (Alias: <code style="font-weight: 800; color: var(--accent-dark);">${AppState.salon.alias || 'TU.ALIAS.MP'}</code>)
-          </div>
-        </div>
-
-        <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 16px;">
-          <a href="${gCalUrl}" target="_blank" rel="noopener noreferrer" class="btn-google-calendar">
-            <span>📅</span>
-            <span>Agendar en Google Calendar</span>
-          </a>
-          <button type="button" class="btn-primary-action" style="padding: 12px; font-size: 13px;" onclick="window.closeBookingSuccessModal()">
-            Listo / Volver al Inicio
-          </button>
-        </div>
-      </div>
-    </div>
-  `;
-}
-
-function renderApp() {
-  const root = document.getElementById('app-root');
-  if (!root) return;
-
-  let screenContent = '';
-  switch (AppState.activeScreen) {
-    case 'splash':
-      screenContent = renderSplash();
-      break;
-    case 'home':
-      screenContent = renderHome();
-      break;
-    case 'services':
-      screenContent = renderServices();
-      break;
-    case 'inspo':
-      screenContent = renderInspo();
-      break;
-    case 'booking':
-      screenContent = renderBooking();
-      break;
-    case 'panel':
-      screenContent = renderPanel();
-      break;
-    default:
-      screenContent = renderHome();
-  }
-
-  // Barra inferior (visible en todas las pantallas excepto Portada y Teclado PIN)
-  const showBottomNav =
-    AppState.activeScreen !== 'splash' &&
-    !(AppState.activeScreen === 'panel' && !AppState.isOwnerUnlocked);
-
-  const bottomNavHtml = showBottomNav
-    ? `
-    <nav class="bottom-nav-bar">
-      <button type="button" class="nav-tab-btn ${AppState.activeScreen === 'home' ? 'active' : ''}" onclick="navigateTo('home')">
-        ${Icons.home}
-        <span>Inicio</span>
-      </button>
-      <button type="button" class="nav-tab-btn ${AppState.activeScreen === 'services' ? 'active' : ''}" onclick="navigateTo('services')">
-        ${Icons.scissors}
-        <span>Servicios</span>
-      </button>
-      <button type="button" class="nav-tab-btn ${AppState.activeScreen === 'inspo' ? 'active' : ''}" onclick="navigateTo('inspo')">
-        ${Icons.sparkles}
-        <span>Inspo</span>
-      </button>
-      <button type="button" class="nav-tab-btn ${AppState.activeScreen === 'booking' ? 'active' : ''}" onclick="navigateTo('booking')">
-        ${Icons.calendar}
-        <span>Mi Turno</span>
-      </button>
-      <button type="button" class="nav-tab-btn ${AppState.activeScreen === 'panel' ? 'active' : ''}" onclick="navigateTo('panel')">
-        ${Icons.lock}
-        <span>Panel</span>
-      </button>
-    </nav>
-  `
-    : '';
-
-  const toastHtml = AppState.toastMessage ? `<div class="toast-msg">${AppState.toastMessage}</div>` : '';
-  const successModalHtml = AppState.isBookingSuccessModalOpen ? renderBookingSuccessModal() : '';
-
-  root.innerHTML = `
-    ${screenContent}
-    ${bottomNavHtml}
-    ${toastHtml}
-    ${successModalHtml}
-  `;
-}
-
-// ----------------------------------------------------------------------------
-// INICIALIZACIÓN
-// ----------------------------------------------------------------------------
-async function startApp() {
-  await initFirebase();
-
-  const savedSalon = await DataStore.get('salon', 'config');
-  if (savedSalon && !savedSalon.isDemo && savedSalon.themeColor !== 'rose') {
-    AppState.salon = { ...AppState.salon, ...savedSalon };
-  } else {
-    // Si no tiene datos propios o tiene la demo oscura previa, actualizar a la nueva Maison de Beauté luminosa
-    AppState.salon = {
-      ...AppState.salon,
-      name: 'Maison de Beauté',
-      tagline: 'Rituels de beauté exclusifs • Soins signature sur rendez-vous',
-      splashTitle: "L'Art de la Beauté,",
-      splashSubtitle: 'Uñas & Peluquería de Autor',
-      themeColor: 'champagne',
-      splashHero: './assets/splash-hero.jpg?v=3.0',
-      isDemo: true
-    };
-    await DataStore.set('salon', 'config', AppState.salon);
-  }
-
-  // Aplicar tema configurado
-  applyTheme(AppState.salon.themeColor || 'rose');
-
-  AppState.categories = await DataStore.getAll('categories');
-  AppState.services = await DataStore.getAll('services');
-  AppState.addons = await DataStore.getAll('addons');
-
-  // Si no hay datos, cargar la Vidriera Demo inicial (que se auto-reemplazará al cargar datos reales)
-  if (AppState.categories.length === 0 && AppState.services.length === 0) {
-    for (const c of DEMO_SHOWCASE.categories) {
-      await DataStore.set('categories', c.id, c);
-    }
-    for (const s of DEMO_SHOWCASE.services) {
-      await DataStore.set('services', s.id, s);
-    }
-    for (const a of DEMO_SHOWCASE.addons) {
-      await DataStore.set('addons', a.id, a);
-    }
-    AppState.categories = [...DEMO_SHOWCASE.categories];
-    AppState.services = [...DEMO_SHOWCASE.services];
-    AppState.addons = [...DEMO_SHOWCASE.addons];
-  }
-  if (!AppState.addons || AppState.addons.length === 0) {
-    const DEFAULT_ADDONS = [
-      { id: 'addon_1', name: 'Retiro de Esmaltado Anterior', price: 1500, duration: 15, active: true },
-      { id: 'addon_2', name: 'Nail Art / Francesitas por uña', price: 2000, duration: 15, active: true },
-      { id: 'addon_3', name: 'Nutrición Capilar Exprés / Ampolla', price: 3500, duration: 20, active: true },
-      { id: 'addon_4', name: 'Exfoliación & Masaje de Manos', price: 2500, duration: 15, active: true }
-    ];
-    for (const addon of DEFAULT_ADDONS) {
-      await DataStore.set('addons', addon.id, addon);
-    }
-    AppState.addons = DEFAULT_ADDONS;
-  }
-  AppState.appointments = await DataStore.getAll('appointments');
-  AppState.clients = await DataStore.getAll('clients');
-  AppState.finances = await DataStore.getAll('finances');
-  AppState.photoBank = await DataStore.getAll('photoBank');
-
-  if (!AppState.photoBank || AppState.photoBank.length === 0) {
-    const DEFAULT_PHOTO_BANK = [
-      { id: 'pb_1', title: 'Modelo Francesa Luminous', url: './assets/splash-hero.jpg', category: 'Portada' },
-      { id: 'pb_2', title: 'Uñas Studio Kapping', url: './assets/studio-nails.jpg', category: 'Uñas' },
-      { id: 'pb_3', title: 'Francesitas Rose Gold', url: './assets/inspo-rose-french.jpg', category: 'Nail Art' },
-      { id: 'pb_4', title: 'Black & Gold Glam', url: './assets/inspo-black-gold.jpg', category: 'Nail Art' },
-      { id: 'pb_5', title: 'Balayage Caramelo & Brushing', url: './assets/service-hair-balayage.jpg', category: 'Peluquería' },
-      { id: 'pb_6', title: 'Corte Femenino de Autor', url: './assets/service-hair-cut.jpg', category: 'Peluquería' },
-      { id: 'pb_7', title: 'Salón Lounge Interior', url: './assets/studio-interior.jpg', category: 'Salón' }
-    ];
-    for (const p of DEFAULT_PHOTO_BANK) {
-      await DataStore.set('photoBank', p.id, p);
-    }
-    AppState.photoBank = DEFAULT_PHOTO_BANK;
-  }
-  AppState.blockedSlots = await DataStore.getAll('blockedSlots');
-
-  const upcomingDays = getUpcomingDays(10);
-  if (!AppState.bookingDate && upcomingDays.length > 0) {
-    AppState.bookingDate = upcomingDays[0].dateStr;
-  }
-  if (!AppState.agendaSelectedDate) {
-    AppState.agendaSelectedDate = getTodayDateStr();
-  }
-
-  const savedInspo = await DataStore.getAll('inspo');
-  if (savedInspo && savedInspo.length > 0) {
-    AppState.inspo = savedInspo;
-  }
-
-  renderApp();
-}
-
-window.addEventListener('DOMContentLoaded', startApp);
 
 window.toggleBookingAddon = (addonId) => {
   if (!AppState.bookingDraft.selectedAddonIds) {

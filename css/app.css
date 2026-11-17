@@ -3315,3 +3315,209 @@ body.theme-noir .preset-chip-btn {
   background: #f3e8ff;
   color: #7e22ce;
 }
+
+/* ============================================================================
+   SISTEMA DE RESERVA GUIADO (ESTILO DANIELA GIMENEZ ELEVADO A MAISON)
+   ============================================================================ */
+.booking-wizard-stepper {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 18px;
+  background: var(--card-bg);
+  border: 1px solid var(--gold-line);
+  border-radius: 16px;
+  padding: 12px 16px;
+  position: relative;
+}
+
+.stepper-step {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  z-index: 2;
+}
+
+.step-num {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.05);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.stepper-step.active .step-num {
+  background: var(--gold-primary);
+  border-color: var(--gold-primary);
+  color: #fff;
+  box-shadow: 0 0 10px rgba(197, 155, 39, 0.4);
+}
+
+.stepper-step.done .step-num {
+  background: #16a34a;
+  border-color: #16a34a;
+  color: #fff;
+}
+
+.stepper-step span {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.stepper-step.active span {
+  color: var(--gold-primary);
+}
+
+.stepper-line {
+  flex: 1;
+  height: 2px;
+  background: rgba(0, 0, 0, 0.06);
+  margin: 0 8px;
+  transition: background 0.2s ease;
+}
+
+.stepper-line.active {
+  background: var(--gold-primary);
+}
+
+body.theme-noir .booking-wizard-stepper {
+  border-color: #332f3b;
+  background: #1a1820;
+}
+body.theme-noir .step-num {
+  background: #25222d;
+  border-color: #383442;
+  color: #9ca3af;
+}
+
+/* Encabezados de Turno Mañana y Tarde */
+.slot-section-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--text-main);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin: 14px 0 8px;
+}
+
+.slot-section-header span.icon {
+  font-size: 14px;
+}
+
+/* Botón de auto-completar datos */
+.btn-quick-autofill {
+  width: 100%;
+  background: rgba(197, 155, 39, 0.08);
+  border: 1px dashed var(--gold-line);
+  color: var(--gold-primary);
+  border-radius: 12px;
+  padding: 10px 14px;
+  font-size: 11.5px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+  transition: all 0.2s ease;
+}
+
+.btn-quick-autofill:hover {
+  background: rgba(197, 155, 39, 0.16);
+}
+
+/* Botones de navegación del Wizard */
+.wizard-nav-strip {
+  display: flex;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.wizard-nav-strip .btn-back {
+  flex: 1;
+  padding: 13px;
+  border-radius: 14px;
+  background: var(--card-bg);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  color: var(--text-main);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.wizard-nav-strip .btn-next {
+  flex: 2;
+  padding: 13px;
+  border-radius: 14px;
+  background: var(--gold-primary);
+  color: #fff;
+  border: none;
+  font-size: 12.5px;
+  font-weight: 800;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  box-shadow: 0 4px 14px rgba(197, 155, 39, 0.3);
+}
+
+.wizard-nav-strip .btn-next:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+/* Vista de Turno Confirmado (Paso 4) */
+.confirmation-card-hero {
+  background: var(--card-bg);
+  border: 1.5px solid var(--gold-line);
+  border-radius: 24px;
+  padding: 24px 18px;
+  text-align: center;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
+}
+
+.confirmation-badge-circle {
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #16a34a, #15803d);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 26px;
+  margin: 0 auto 12px;
+  box-shadow: 0 6px 16px rgba(22, 163, 74, 0.35);
+}
+
+.confirmation-code-box {
+  background: rgba(197, 155, 39, 0.08);
+  border: 1px dashed var(--gold-line);
+  border-radius: 12px;
+  padding: 8px 14px;
+  display: inline-block;
+  margin: 8px auto 14px;
+  font-family: monospace;
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--gold-primary);
+  letter-spacing: 0.1em;
+}
