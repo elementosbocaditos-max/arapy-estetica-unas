@@ -90,6 +90,7 @@ const AppState = {
   activeScreen: 'splash',
   panelSubView: 'menu', // 'menu' | 'agenda' | 'clients' | 'services' | 'finances' | 'salon' | 'photos'
   isOwnerUnlocked: false,
+  storeConfigTab: 'general', // 'general' | 'hours' | 'finance' | 'security'
   pinDraft: '',
   pinError: '',
   toastMessage: null,
@@ -102,6 +103,11 @@ const AppState = {
     phone: '',
     alias: 'TU.ALIAS.MP',
     aliasHolder: 'Titular del Salón',
+    cuit: '',
+    cashDiscount: 10,
+    openTime: '09:00',
+    closeTime: '20:00',
+    workingDays: 'Lunes a Sábado',
     depositPercent: 50,
     pin: '', // Vacío por defecto: la dueña lo crea la primera vez
     splashTitle: 'Look Good,',
@@ -185,6 +191,11 @@ const Icons = {
   lock: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>`,
   chevronLeft: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="15 18 9 12 15 6"/></svg>`,
   users: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>`,
+  wallet: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1"/><path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4"/></svg>`,
+  clock: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>`,
+  shield: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>`,
+  creditCard: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" x2="10"/></svg>`,
+  settings: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>`,
   dollar: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="12" x2="12" y1="2" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>`,
   store: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="m2 7 4.41-4.41A2 2 0 0 1 7.83 2h8.34a2 2 0 0 1 1.42.59L22 7"/><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><path d="M15 22v-4a2 2 0 0 0-2-2h-2a2 2 0 0 0-2 2v4"/><path d="M2 7h20"/></svg>`,
   camera: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>`,
@@ -1053,11 +1064,23 @@ function renderPanel() {
     <div class="screen-viewport">
       <header class="app-header">
         <div class="app-header-left">
-          <h2 class="app-header-title">Panel del Dueño</h2>
+          <div class="mirrored-icon-badge" style="width: 32px; height: 32px; font-size: 14px;">
+            ${Icons.store}
+          </div>
+          <div>
+            <h2 class="app-header-title">Panel de Control</h2>
+            <p style="font-size: 10px; color: var(--gold-primary); font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em;">
+              ${AppState.salon.name || 'Maison de Beauté'}
+            </p>
+          </div>
         </div>
-        <div style="display: flex; gap: 8px;">
-          <button type="button" class="btn-danger-action" onclick="window.lockOwnerPanel()">
-            Cerrar Sesión
+        <div style="display: flex; align-items: center; gap: 6px;">
+          <button type="button" class="header-icon-action" onclick="window.openPanelSubView('salon')" title="Configuración de la Tienda">
+            ${Icons.store}
+            <span>Tienda</span>
+          </button>
+          <button type="button" class="btn-danger-action" style="padding: 6px 10px; font-size: 11px;" onclick="window.lockOwnerPanel()">
+            Salir
           </button>
         </div>
       </header>
@@ -1114,21 +1137,27 @@ function renderPanel() {
           </div>
         </div>
 
-        <!-- 4. Finanzas y Caja -->
-        <div class="owner-big-card" onclick="window.openPanelSubView('finances')">
+        <!-- 4. Finanzas y Caja Completo -->
+        <div class="owner-big-card gold-card" onclick="window.openPanelSubView('finances')">
           <div class="big-card-icon" style="background: #dcfce7; color: #16a34a;">${Icons.dollar}</div>
           <div>
-            <h3>Finanzas & Caja</h3>
-            <p>Ingresos del día • Señas y balance</p>
+            <div style="display: flex; align-items: center; justify-content: space-between;">
+              <h3>Finanzas & Caja Completo</h3>
+              <span class="gold-badge" style="font-size: 9.5px; padding: 2px 6px;">Arqueo en Vivo</span>
+            </div>
+            <p>Arqueo de caja, efectivo vs bancos, señas y balances</p>
           </div>
         </div>
 
-        <!-- 5. Datos del Salón -->
-        <div class="owner-big-card" onclick="window.openPanelSubView('salon')">
-          <div class="big-card-icon" style="background: #fef3c7; color: #d97706;">${Icons.store}</div>
+        <!-- 5. Configuración de la Tienda -->
+        <div class="owner-big-card gold-card" onclick="window.openPanelSubView('salon')">
+          <div class="big-card-icon" style="background: rgba(197, 155, 39, 0.15); color: var(--gold-primary);">${Icons.store}</div>
           <div>
-            <h3>Datos del Salón</h3>
-            <p>Nombre, horarios, Alias / CBU</p>
+            <div style="display: flex; align-items: center; justify-content: space-between;">
+              <h3>Configuración de la Tienda</h3>
+              <span class="gold-badge" style="font-size: 9.5px; padding: 2px 6px;">Ajustes & Cuentas</span>
+            </div>
+            <p>Datos comerciales, horarios, cuentas bancarias y PIN</p>
           </div>
         </div>
 
@@ -1755,67 +1784,296 @@ window.sendClientWhatsAppReminder = (apptId) => {
 // ----------------------------------------------------------------------------
 function renderPanelSalon() {
   const salon = AppState.salon;
+  const currentTab = AppState.storeConfigTab || 'general';
 
   return `
     <div class="screen-viewport">
       <header class="app-header">
         <div class="app-header-left">
           <button type="button" class="header-back-btn" onclick="window.openPanelSubView('menu')">${Icons.chevronLeft}</button>
-          <h2 class="app-header-title">Datos del Salón</h2>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <div class="mirrored-icon-badge" style="width: 30px; height: 30px; font-size: 13px;">
+              ${Icons.store}
+            </div>
+            <div>
+              <h2 class="app-header-title">Configuración de la Tienda</h2>
+              <p style="font-size: 11px; color: var(--text-muted); font-weight: 600;">${salon.name || 'Maison de Beauté'} • Ajustes y Cuentas</p>
+            </div>
+          </div>
         </div>
       </header>
 
       <div class="panel-subview">
-        <form class="form-card" onsubmit="window.handleSaveSalonData(event)">
-          <h3>Información General</h3>
-          <p class="form-card-sub">Estos datos se reflejan de inmediato en la pantalla de la clienta:</p>
-
-          <div class="form-group-clean">
-            <label>Nombre del Salón</label>
-            <input type="text" id="salon-name-input" value="${salon.name || ''}" placeholder="Ej: Studio Chic & Nails" required />
-          </div>
-
-          <div class="form-group-clean">
-            <label>Eslogan o Subtítulo</label>
-            <input type="text" id="salon-tagline-input" value="${salon.tagline || ''}" placeholder="Ej: Estética de uñas y peluquería profesional" />
-          </div>
-
-          <div class="form-group-clean">
-            <label>Dirección del Local</label>
-            <input type="text" id="salon-address-input" value="${salon.address || ''}" placeholder="Ej: Av. Santa Fe 1234, Local 4" />
-          </div>
-
-          <div class="form-group-clean">
-            <label>Teléfono de WhatsApp (con código de país, sin + ni espacios)</label>
-            <input type="tel" id="salon-phone-input" value="${salon.phone || ''}" placeholder="Ej: 5491123456789" />
-          </div>
-
-          <h3 style="margin-top: 18px;">Cobro de Seña</h3>
-          <p class="form-card-sub">Datos bancarios para que la clienta congele su turno:</p>
-
-          <div class="form-group-clean">
-            <label>Alias de Mercado Pago o Banco</label>
-            <input type="text" id="salon-alias-input" value="${salon.alias || ''}" placeholder="Ej: SALON.MP" />
-          </div>
-
-          <div class="form-group-clean">
-            <label>Nombre del Titular de la Cuenta</label>
-            <input type="text" id="salon-alias-holder-input" value="${salon.aliasHolder || ''}" placeholder="Ej: María Pérez" />
-          </div>
-
-          <div class="form-group-clean">
-            <label>Porcentaje de Seña por Defecto (%)</label>
-            <input type="number" id="salon-deposit-input" value="${salon.depositPercent || 50}" min="0" max="100" />
-          </div>
-
-          <button type="submit" class="btn-primary-action" style="width: 100%; margin-top: 10px;">
-            Guardar Cambios del Salón
+        <!-- Barra de Pestañas de la Tienda -->
+        <div class="store-config-tabs">
+          <button type="button" class="store-tab-btn ${currentTab === 'general' ? 'active' : ''}" onclick="window.setStoreConfigTab('general')">
+            <span>🏪 Negocio</span>
           </button>
-        </form>
+          <button type="button" class="store-tab-btn ${currentTab === 'hours' ? 'active' : ''}" onclick="window.setStoreConfigTab('hours')">
+            <span>⏰ Horarios</span>
+          </button>
+          <button type="button" class="store-tab-btn ${currentTab === 'finance' ? 'active' : ''}" onclick="window.setStoreConfigTab('finance')">
+            <span>💳 Finanzas & Cobros</span>
+          </button>
+          <button type="button" class="store-tab-btn ${currentTab === 'security' ? 'active' : ''}" onclick="window.setStoreConfigTab('security')">
+            <span>🔒 Seguridad & PIN</span>
+          </button>
+        </div>
+
+        <!-- PESTAÑA 1: DATOS DEL NEGOCIO -->
+        ${currentTab === 'general' ? `
+          <form class="form-card gold-card" onsubmit="window.handleSaveStoreGeneral(event)">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px;">
+              <h3>🏪 Identidad Comercial del Salón</h3>
+              <span class="gold-badge" style="font-size: 10px;">Visible para Clientas</span>
+            </div>
+            <p class="form-card-sub">Estos datos se reflejan de inmediato en la portada y encabezados:</p>
+
+            <div class="form-group-clean">
+              <label>Nombre de la Tienda / Salón</label>
+              <input type="text" id="store-name-input" value="${salon.name || ''}" placeholder="Ej: Maison de Beauté" required />
+            </div>
+
+            <div class="form-group-clean">
+              <label>Eslogan o Subtítulo Editorial</label>
+              <input type="text" id="store-tagline-input" value="${salon.tagline || ''}" placeholder="Ej: Uñas de Autor & Haute Coiffure" />
+            </div>
+
+            <div class="form-group-clean">
+              <label>Dirección del Local</label>
+              <input type="text" id="store-address-input" value="${salon.address || ''}" placeholder="Ej: Av. Alvear 1850, Local 4" />
+            </div>
+
+            <div class="form-group-clean">
+              <label>Teléfono de WhatsApp Comercial (con código de país, sin + ni espacios)</label>
+              <input type="tel" id="store-phone-input" value="${salon.phone || ''}" placeholder="Ej: 5491123456789" required />
+              <span style="font-size: 10.5px; color: var(--text-muted); margin-top: 3px; display: block;">
+                Es el número donde recibirás los comprobantes de turnos y señas de tus clientas.
+              </span>
+            </div>
+
+            <button type="submit" class="btn-primary-action btn-gold-shimmer" style="width: 100%; margin-top: 8px;">
+              Guardar Datos Comerciales
+            </button>
+          </form>
+        ` : ''}
+
+        <!-- PESTAÑA 2: HORARIOS DE ATENCIÓN -->
+        ${currentTab === 'hours' ? `
+          <form class="form-card gold-card" onsubmit="window.handleSaveStoreHours(event)">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px;">
+              <h3>⏰ Horarios & Días de Atención</h3>
+              <span class="gold-badge" style="font-size: 10px;">Agenda Online</span>
+            </div>
+            <p class="form-card-sub">Configurá los días y rangos en que tus clientas pueden reservar turnos:</p>
+
+            <div class="form-group-clean">
+              <label>Días de Atención al Público</label>
+              <input type="text" id="store-working-days" value="${salon.workingDays || 'Lunes a Sábado'}" placeholder="Ej: Lunes a Sábado" required />
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+              <div class="form-group-clean">
+                <label>Hora de Apertura</label>
+                <input type="time" id="store-open-time" value="${salon.openTime || '09:00'}" required />
+              </div>
+              <div class="form-group-clean">
+                <label>Hora de Cierre</label>
+                <input type="time" id="store-close-time" value="${salon.closeTime || '20:00'}" required />
+              </div>
+            </div>
+
+            <button type="submit" class="btn-primary-action btn-gold-shimmer" style="width: 100%; margin-top: 8px;">
+              Guardar Horarios de Atención
+            </button>
+          </form>
+        ` : ''}
+
+        <!-- PESTAÑA 3: FINANZAS Y COBROS DE LA TIENDA (COMPLETO) -->
+        ${currentTab === 'finance' ? `
+          <form class="form-card gold-card" onsubmit="window.handleSaveStoreFinance(event)">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px;">
+              <h3>💳 Cuentas Bancarias & Señas de Turnos</h3>
+              <span class="gold-badge" style="font-size: 10px;">Cobro Seguro</span>
+            </div>
+            <p class="form-card-sub">
+              Configurá dónde te transfieren las señas y los medios de pago aceptados en tu salón:
+            </p>
+
+            <div class="form-group-clean">
+              <label>Alias de Mercado Pago / CVU / CBU</label>
+              <input type="text" id="store-alias-input" value="${salon.alias || ''}" placeholder="Ej: MAISON.BEAUTE.MP" required />
+            </div>
+
+            <div class="form-group-clean">
+              <label>Nombre del Titular de la Cuenta</label>
+              <input type="text" id="store-holder-input" value="${salon.aliasHolder || ''}" placeholder="Ej: Maison Studio SRL" required />
+            </div>
+
+            <div class="form-group-clean">
+              <label>CUIT / CUIL del Titular (Opcional)</label>
+              <input type="text" id="store-cuit-input" value="${salon.cuit || ''}" placeholder="Ej: 27-35123456-4" />
+            </div>
+
+            <div class="form-group-clean">
+              <label>Porcentaje de Seña Requerido (%)</label>
+              <input type="number" id="store-deposit-input" value="${salon.depositPercent !== undefined ? salon.depositPercent : 50}" min="0" max="100" required />
+              <div class="quick-preset-btns">
+                <button type="button" class="preset-chip-btn" onclick="window.setDepositPreset(0)">0% (Sin Seña)</button>
+                <button type="button" class="preset-chip-btn" onclick="window.setDepositPreset(20)">20%</button>
+                <button type="button" class="preset-chip-btn" onclick="window.setDepositPreset(30)">30%</button>
+                <button type="button" class="preset-chip-btn" onclick="window.setDepositPreset(50)">50% (Recomendado)</button>
+                <button type="button" class="preset-chip-btn" onclick="window.setDepositPreset(100)">100% Total</button>
+              </div>
+            </div>
+
+            <div class="form-group-clean">
+              <label>Descuento Promocional por Pago en Efectivo (%)</label>
+              <input type="number" id="store-cash-discount" value="${salon.cashDiscount || 10}" min="0" max="50" placeholder="Ej: 10" />
+              <span style="font-size: 10.5px; color: var(--text-muted); margin-top: 3px; display: block;">
+                Incentiva a tus clientas a pagar en efectivo en el salón para tener liquidez diaria.
+              </span>
+            </div>
+
+            <button type="submit" class="btn-primary-action btn-gold-shimmer" style="width: 100%; margin-top: 8px;">
+              Guardar Configuración Financiera
+            </button>
+          </form>
+
+          <!-- Acceso Directo a Finanzas en Vivo -->
+          <div class="form-card gold-card" style="margin-top: 12px; background: linear-gradient(135deg, rgba(22, 163, 74, 0.06), rgba(197, 155, 39, 0.08));">
+            <div style="display: flex; align-items: center; justify-content: space-between;">
+              <div>
+                <h4 style="font-size: 14px; font-weight: 800; color: #15803d; margin: 0;">💰 Caja Diaria & Balances en Vivo</h4>
+                <p style="font-size: 11.5px; color: var(--text-muted); margin-top: 2px;">
+                  Arqueo de efectivo en mano, transferencias MP, registro de gastos y exportación CSV.
+                </p>
+              </div>
+            </div>
+            <button type="button" class="btn-primary-action" style="width: 100%; margin-top: 10px; background: #16a34a;" onclick="window.openPanelSubView('finances')">
+              Abrir Módulo de Finanzas & Caja Completo →
+            </button>
+          </div>
+        ` : ''}
+
+        <!-- PESTAÑA 4: SEGURIDAD Y PIN -->
+        ${currentTab === 'security' ? `
+          <form class="form-card gold-card" onsubmit="window.handleSaveStorePIN(event)">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px;">
+              <h3>🔒 Seguridad & PIN de Acceso</h3>
+              <span class="gold-badge" style="font-size: 10px;">Panel del Dueño</span>
+            </div>
+            <p class="form-card-sub">Modificá el PIN de 4 dígitos para bloquear y proteger tu panel:</p>
+
+            <div class="form-group-clean">
+              <label>Nuevo PIN de 4 Dígitos</label>
+              <input type="password" id="store-new-pin" maxlength="4" placeholder="••••" pattern="[0-9]{4}" required style="letter-spacing: 0.3em; font-size: 18px; text-align: center;" />
+            </div>
+
+            <div class="form-group-clean">
+              <label>Confirmar Nuevo PIN</label>
+              <input type="password" id="store-confirm-pin" maxlength="4" placeholder="••••" pattern="[0-9]{4}" required style="letter-spacing: 0.3em; font-size: 18px; text-align: center;" />
+            </div>
+
+            <button type="submit" class="btn-primary-action btn-gold-shimmer" style="width: 100%; margin-top: 8px;">
+              Actualizar PIN de Seguridad
+            </button>
+          </form>
+        ` : ''}
       </div>
     </div>
   `;
 }
+
+window.setStoreConfigTab = (tab) => {
+  AppState.storeConfigTab = tab;
+  renderApp();
+};
+
+window.setDepositPreset = (percent) => {
+  const input = document.getElementById('store-deposit-input');
+  if (input) input.value = percent;
+};
+
+window.handleSaveStoreGeneral = async (e) => {
+  e.preventDefault();
+  const name = document.getElementById('store-name-input')?.value.trim();
+  const tagline = document.getElementById('store-tagline-input')?.value.trim();
+  const address = document.getElementById('store-address-input')?.value.trim();
+  const phone = document.getElementById('store-phone-input')?.value.trim();
+
+  AppState.salon = {
+    ...AppState.salon,
+    name,
+    tagline,
+    address,
+    phone
+  };
+
+  await DataStore.set('salon', 'config', AppState.salon);
+  showToast('✅ Identidad comercial de la tienda guardada');
+  renderApp();
+};
+
+window.handleSaveStoreHours = async (e) => {
+  e.preventDefault();
+  const workingDays = document.getElementById('store-working-days')?.value.trim();
+  const openTime = document.getElementById('store-open-time')?.value;
+  const closeTime = document.getElementById('store-close-time')?.value;
+
+  AppState.salon = {
+    ...AppState.salon,
+    workingDays,
+    openTime,
+    closeTime
+  };
+
+  await DataStore.set('salon', 'config', AppState.salon);
+  showToast('⏰ Horarios de atención actualizados');
+  renderApp();
+};
+
+window.handleSaveStoreFinance = async (e) => {
+  e.preventDefault();
+  const alias = document.getElementById('store-alias-input')?.value.trim();
+  const aliasHolder = document.getElementById('store-holder-input')?.value.trim();
+  const cuit = document.getElementById('store-cuit-input')?.value.trim();
+  const depositPercent = Number(document.getElementById('store-deposit-input')?.value) || 0;
+  const cashDiscount = Number(document.getElementById('store-cash-discount')?.value) || 0;
+
+  AppState.salon = {
+    ...AppState.salon,
+    alias,
+    aliasHolder,
+    cuit,
+    depositPercent,
+    cashDiscount
+  };
+
+  await DataStore.set('salon', 'config', AppState.salon);
+  showToast('💳 Cuentas y señas de la tienda actualizadas');
+  renderApp();
+};
+
+window.handleSaveStorePIN = async (e) => {
+  e.preventDefault();
+  const p1 = document.getElementById('store-new-pin')?.value.trim();
+  const p2 = document.getElementById('store-confirm-pin')?.value.trim();
+
+  if (!p1 || p1.length !== 4) {
+    showToast('⚠️ El PIN debe ser de 4 números');
+    return;
+  }
+  if (p1 !== p2) {
+    showToast('⚠️ Los dos PINs ingresados no coinciden');
+    return;
+  }
+
+  AppState.salon.pin = p1;
+  await DataStore.set('salon', 'config', AppState.salon);
+  showToast('🔒 ¡Nuevo PIN guardado con éxito!');
+  renderApp();
+};
 
 window.selectThemePalette = (theme) => {
   applyTheme(theme);
@@ -1825,35 +2083,6 @@ window.selectThemePalette = (theme) => {
   renderApp();
 };
 
-window.handleSaveSalonData = async (e) => {
-  e.preventDefault();
-  const name = document.getElementById('salon-name-input')?.value.trim();
-  const tagline = document.getElementById('salon-tagline-input')?.value.trim();
-  const address = document.getElementById('salon-address-input')?.value.trim();
-  const phone = document.getElementById('salon-phone-input')?.value.trim();
-  const alias = document.getElementById('salon-alias-input')?.value.trim();
-  const aliasHolder = document.getElementById('salon-alias-holder-input')?.value.trim();
-  const depositPercent = Number(document.getElementById('salon-deposit-input')?.value) || 50;
-
-  AppState.salon = {
-    ...AppState.salon,
-    name,
-    tagline,
-    address,
-    phone,
-    alias,
-    aliasHolder,
-    depositPercent
-  };
-
-  await DataStore.set('salon', 'config', AppState.salon);
-  showToast('✅ Datos del salón guardados exitosamente');
-  window.openPanelSubView('menu');
-};
-
-// ----------------------------------------------------------------------------
-// SUBPANTALLA: 3. SERVICIOS Y PRECIOS (GESTIÓN DE CATEGORÍAS Y TRABAJOS)
-// ----------------------------------------------------------------------------
 function renderPanelServices() {
   const categories = AppState.categories || [];
   const services = AppState.services || [];
@@ -2754,8 +2983,8 @@ function renderPanelFinances() {
   const appointments = AppState.appointments || [];
   const filter = AppState.financeFilter || 'month';
   const todayStr = getTodayDateStr();
+  const currentMonthPrefix = todayStr.substring(0, 7);
 
-  // Cálculo de KPIs:
   // 1. Ingresos por señas recibidas en turnos
   const apptDeposits = appointments.filter((a) => a.depositPaid === true);
   const totalDepositsIncome = apptDeposits.reduce((acc, a) => acc + (Number(a.depositAmount) || 0), 0);
@@ -2768,14 +2997,11 @@ function renderPanelFinances() {
   const expenses = finances.filter((t) => t.type === 'expense');
   const totalExpenses = expenses.reduce((acc, t) => acc + (Number(t.amount) || 0), 0);
 
-  // Total ingresos consolidados
+  // 4. Totales Consolidados
   const totalAllIncome = totalDepositsIncome + directIncomeTotal;
   const netBalance = totalAllIncome - totalExpenses;
 
-  // KPIs por período (Hoy, Semana, Mes):
-  const now = new Date();
-  const currentMonthPrefix = todayStr.substring(0, 7); // 'YYYY-MM'
-
+  // 5. KPIs por Período
   const todayIncome =
     finances.filter((t) => t.type === 'income' && t.date === todayStr).reduce((acc, t) => acc + Number(t.amount), 0) +
     appointments.filter((a) => a.depositPaid && a.date === todayStr).reduce((acc, a) => acc + Number(a.depositAmount), 0);
@@ -2784,10 +3010,15 @@ function renderPanelFinances() {
     finances.filter((t) => t.type === 'income' && (t.date || '').startsWith(currentMonthPrefix)).reduce((acc, t) => acc + Number(t.amount), 0) +
     appointments.filter((a) => a.depositPaid && (a.date || '').startsWith(currentMonthPrefix)).reduce((acc, a) => acc + Number(a.depositAmount), 0);
 
-  // Cobros Pendientes (Turnos confirmados con seña o saldo pendiente)
+  // 6. Arqueo de Caja Diario (Por Medio de Pago)
+  const cashIncome = finances.filter((t) => t.type === 'income' && (!t.method || t.method.includes('Efectivo'))).reduce((acc, t) => acc + Number(t.amount), 0);
+  const transferIncome = finances.filter((t) => t.type === 'income' && t.method && (t.method.includes('Transferencia') || t.method.includes('MP'))).reduce((acc, t) => acc + Number(t.amount), 0) + totalDepositsIncome;
+  const cardIncome = finances.filter((t) => t.type === 'income' && t.method && t.method.includes('Tarjeta')).reduce((acc, t) => acc + Number(t.amount), 0);
+
+  // Cobros Pendientes (Turnos confirmados sin seña pagada)
   const pendingDeposits = appointments.filter((a) => a.status !== 'cancelled' && a.depositPaid !== true);
 
-  // Filtrado de movimientos para la lista
+  // Filtrado de movimientos
   const filteredTxs = finances.filter((t) => {
     if (filter === 'today') return t.date === todayStr;
     if (filter === 'month') return (t.date || '').startsWith(currentMonthPrefix);
@@ -2799,36 +3030,74 @@ function renderPanelFinances() {
       <header class="app-header">
         <div class="app-header-left">
           <button type="button" class="header-back-btn" onclick="window.openPanelSubView('menu')">${Icons.chevronLeft}</button>
-          <div>
-            <h2 class="app-header-title">Finanzas & Caja</h2>
-            <p style="font-size: 11px; color: var(--text-muted);">Control de ingresos, señas y egresos</p>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <div class="mirrored-icon-badge" style="width: 30px; height: 30px; font-size: 13px;">
+              ${Icons.dollar}
+            </div>
+            <div>
+              <h2 class="app-header-title">Finanzas & Caja Completo</h2>
+              <p style="font-size: 11px; color: var(--text-muted); font-weight: 600;">Control integral de ingresos, señas y arqueo</p>
+            </div>
           </div>
         </div>
-        <button type="button" class="btn-primary-action" style="padding: 7px 11px; font-size: 11px; background: #0284c7;" onclick="window.exportFinancesCSV()">
-          📥 Exportar CSV
-        </button>
+        <div style="display: flex; gap: 6px;">
+          <button type="button" class="header-icon-action" onclick="window.openStoreFinanceConfig()" title="Configurar Cuentas y Seña">
+            ${Icons.store}
+            <span>Cuentas</span>
+          </button>
+          <button type="button" class="btn-primary-action" style="padding: 7px 11px; font-size: 11px; background: #0284c7;" onclick="window.exportFinancesCSV()">
+            📥 CSV
+          </button>
+        </div>
       </header>
 
       <div class="panel-subview">
-        <!-- 3 Tarjetas KPI Superiores -->
+        <!-- 3 KPIs Superiores -->
         <div class="kpi-metrics-grid">
-          <div class="kpi-metric-card">
+          <div class="kpi-metric-card gold-card">
             <span class="kpi-lbl">Ingresos Hoy</span>
-            <strong class="kpi-val" style="color: #16a34a;">$${todayIncome.toLocaleString('es-AR')}</strong>
+            <strong class="kpi-val" style="color: #16a34a;">${todayIncome.toLocaleString('es-AR')}</strong>
           </div>
-          <div class="kpi-metric-card">
+          <div class="kpi-metric-card gold-card">
             <span class="kpi-lbl">Este Mes</span>
-            <strong class="kpi-val" style="color: #0284c7;">$${monthIncome.toLocaleString('es-AR')}</strong>
+            <strong class="kpi-val" style="color: #0284c7;">${monthIncome.toLocaleString('es-AR')}</strong>
           </div>
-          <div class="kpi-metric-card">
+          <div class="kpi-metric-card gold-card">
             <span class="kpi-lbl">Balance Neto</span>
-            <strong class="kpi-val" style="color: ${netBalance >= 0 ? '#16a34a' : '#dc2626'};">$${netBalance.toLocaleString('es-AR')}</strong>
+            <strong class="kpi-val" style="color: ${netBalance >= 0 ? '#16a34a' : '#dc2626'};">${netBalance.toLocaleString('es-AR')}</strong>
+          </div>
+        </div>
+
+        <!-- ARQUEO DE CAJA DIARIA POR MEDIO DE PAGO (COMPLETO) -->
+        <div class="form-card gold-card" style="margin-top: 10px;">
+          <div style="display: flex; align-items: center; justify-content: space-between;">
+            <h4 style="font-size: 12.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: var(--gold-primary); margin: 0;">
+              ⚖️ Arqueo de Caja por Medio de Pago
+            </h4>
+            <span class="gold-badge" style="font-size: 9.5px;">Cierre en Vivo</span>
+          </div>
+          <div class="arqueo-grid">
+            <div class="arqueo-card">
+              <span class="arqueo-icon">💵</span>
+              <span class="arqueo-label">Efectivo Físico</span>
+              <strong class="arqueo-amount" style="color: #16a34a;">${cashIncome.toLocaleString('es-AR')}</strong>
+            </div>
+            <div class="arqueo-card">
+              <span class="arqueo-icon">📱</span>
+              <span class="arqueo-label">Mercado Pago / MP</span>
+              <strong class="arqueo-amount" style="color: #0284c7;">${transferIncome.toLocaleString('es-AR')}</strong>
+            </div>
+            <div class="arqueo-card">
+              <span class="arqueo-icon">💳</span>
+              <span class="arqueo-label">Tarjetas POS</span>
+              <strong class="arqueo-amount" style="color: #7c3aed;">${cardIncome.toLocaleString('es-AR')}</strong>
+            </div>
           </div>
         </div>
 
         <!-- Botones de Acción Rápida: + Cobro / - Gasto -->
         <div class="finance-action-buttons">
-          <button type="button" class="btn-record-income" onclick="window.handleOpenTxModal('income')">
+          <button type="button" class="btn-record-income btn-gold-shimmer" onclick="window.handleOpenTxModal('income')">
             <span>+</span>
             <span>Registrar Cobro</span>
           </button>
@@ -2841,26 +3110,26 @@ function renderPanelFinances() {
         <!-- Formulario Modal: Registrar Movimiento -->
         ${AppState.isNewTxModalOpen ? renderTxModalForm() : ''}
 
-        <!-- Desglose de Caja -->
-        <div class="finance-breakdown-card">
-          <div style="font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); margin-bottom: 8px;">
-            Desglose Consolidado
+        <!-- Desglose Consolidado -->
+        <div class="finance-breakdown-card gold-card">
+          <div style="font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: var(--gold-primary); margin-bottom: 8px;">
+            Desglose Consolidado de Caja
           </div>
           <div class="breakdown-row">
             <span>Señas de Turnos Recibidas:</span>
-            <strong style="color: #16a34a;">+$${totalDepositsIncome.toLocaleString('es-AR')}</strong>
+            <strong style="color: #16a34a;">+${totalDepositsIncome.toLocaleString('es-AR')}</strong>
           </div>
           <div class="breakdown-row">
-            <span>Cobros Finales y Ventas:</span>
-            <strong style="color: #16a34a;">+$${directIncomeTotal.toLocaleString('es-AR')}</strong>
+            <span>Cobros y Ventas en el Local:</span>
+            <strong style="color: #16a34a;">+${directIncomeTotal.toLocaleString('es-AR')}</strong>
           </div>
           <div class="breakdown-row">
             <span>Gastos Operativos (Insumos/Alquiler):</span>
-            <strong style="color: #dc2626;">-$${totalExpenses.toLocaleString('es-AR')}</strong>
+            <strong style="color: #dc2626;">-${totalExpenses.toLocaleString('es-AR')}</strong>
           </div>
           <div class="breakdown-row">
             <span>Balance de Caja Disponible:</span>
-            <strong style="color: ${netBalance >= 0 ? '#16a34a' : '#dc2626'};">$${netBalance.toLocaleString('es-AR')}</strong>
+            <strong style="color: ${netBalance >= 0 ? '#16a34a' : '#dc2626'};">${netBalance.toLocaleString('es-AR')}</strong>
           </div>
         </div>
 
@@ -2868,44 +3137,52 @@ function renderPanelFinances() {
         ${
           pendingDeposits.length > 0
             ? `
-          <div class="form-card" style="border: 1px dashed #d97706; background: #fffbeb;">
+          <div class="form-card gold-card" style="border-left: 3px solid #f59e0b;">
             <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
-              <h4 style="font-size: 13.5px; font-weight: 800; color: #b45309;">
-                ⏳ Señas Pendientes de Cobro (${pendingDeposits.length})
+              <h4 style="font-size: 12.5px; font-weight: 800; color: #b45309; margin: 0;">
+                ⏳ Turnos con Cobro Pendiente (${pendingDeposits.length})
               </h4>
+              <span class="gold-badge" style="font-size: 9.5px; background: #fef3c7; color: #b45309;">Por Cobrar</span>
             </div>
-            <p style="font-size: 11.5px; color: #78350f; margin-bottom: 10px;">
-              Turnos agendados con seña aún sin marcar como recibida:
+            <p style="font-size: 11.5px; color: var(--text-muted); margin-bottom: 8px;">
+              Tocá el medio de pago en el que recibiste el dinero para registrarlo al instante en caja:
             </p>
-            <div style="display: flex; flex-direction: column; gap: 6px;">
-              ${pendingDeposits
-                .slice(0, 5)
-                .map(
-                  (p) => `
-                <div style="display: flex; align-items: center; justify-content: space-between; background: #fff; border-radius: 10px; padding: 8px 12px; font-size: 12px; border: 1px solid #fde68a;">
-                  <div>
-                    <strong>${p.clientName}</strong>
-                    <div style="font-size: 11px; color: #78350f;">${p.serviceName} • 📅 ${p.date} (${p.slot} hs)</div>
+            <div style="display: flex; flex-direction: column; gap: 8px;">
+              ${pendingDeposits.map((a) => `
+                <div style="background: var(--card-bg); border: 1px solid rgba(0,0,0,0.06); border-radius: 12px; padding: 10px;">
+                  <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                      <strong style="font-size: 13px; color: var(--text-main);">${a.clientName}</strong>
+                      <div style="font-size: 11px; color: var(--text-muted);">
+                        ${a.serviceName} • 📅 ${a.date} ${a.slot}
+                      </div>
+                    </div>
+                    <span style="font-size: 13.5px; font-weight: 800; color: #b45309;">
+                      ${Number(a.depositAmount || 0).toLocaleString('es-AR')}
+                    </span>
                   </div>
-                  <div style="text-align: right;">
-                    <div style="font-weight: 800; color: #b45309;">$${Number(p.depositAmount).toLocaleString('es-AR')}</div>
-                    <button type="button" style="background: #16a34a; color: #fff; border: none; font-size: 10px; font-weight: 800; padding: 3px 8px; border-radius: 6px; cursor: pointer; margin-top: 3px;" onclick="window.handleCollectPendingDeposit('${p.id}')">
-                      Recibida ✅
+                  <div class="pending-collect-strip">
+                    <button type="button" class="btn-collect-quick cash" onclick="window.handleCollectPendingWithMethod('${a.id}', 'Efectivo')">
+                      💵 Cobrar Efectivo
+                    </button>
+                    <button type="button" class="btn-collect-quick mp" onclick="window.handleCollectPendingWithMethod('${a.id}', 'Transferencia / MP')">
+                      📱 Cobrar MP/Transf.
+                    </button>
+                    <button type="button" class="btn-collect-quick card" onclick="window.handleCollectPendingWithMethod('${a.id}', 'Tarjeta')">
+                      💳 Tarjeta
                     </button>
                   </div>
                 </div>
-              `
-                )
-                .join('')}
+              `).join('')}
             </div>
           </div>
-        `
-            : ''
-        }
+        ` : ''}
 
-        <!-- Filtro de Movimientos -->
-        <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 6px;">
-          <h3 style="font-size: 14px; font-weight: 800; color: var(--text-main);">Movimientos Registrados</h3>
+        <!-- Historial de Movimientos con Filtros -->
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 14px;">
+          <h3 style="font-size: 14px; font-weight: 800; color: var(--text-main); margin: 0;">
+            Historial de Movimientos
+          </h3>
           <div class="filter-pills-row">
             <button type="button" class="filter-pill-btn ${filter === 'today' ? 'active' : ''}" onclick="window.setFinanceFilter('today')">Hoy</button>
             <button type="button" class="filter-pill-btn ${filter === 'month' ? 'active' : ''}" onclick="window.setFinanceFilter('month')">Este Mes</button>
@@ -2913,31 +3190,32 @@ function renderPanelFinances() {
           </div>
         </div>
 
-        <!-- Lista de Movimientos -->
         ${
           filteredTxs.length === 0
             ? `
-          <div style="text-align: center; padding: 30px 16px; background: var(--card-bg); border-radius: 16px; border: 1px solid rgba(0,0,0,0.06);">
-            <p style="font-size: 12.5px; color: var(--text-muted);">Sin movimientos registrados para este período.</p>
-            <p style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">Usá los botones de arriba para registrar cobros o gastos diarios.</p>
+          <div style="text-align: center; padding: 30px 16px; background: var(--card-bg); border-radius: 14px; border: 1px dashed rgba(0,0,0,0.08); margin-top: 10px;">
+            <p style="font-size: 12.5px; color: var(--text-muted);">Sin movimientos registrados en este período.</p>
           </div>
         `
             : `
-          <div style="display: flex; flex-direction: column; gap: 8px;">
-            ${filteredTxs
-              .map((tx) => {
-                const isIncome = tx.type === 'income';
-                return `
-              <div class="tx-item-card">
-                <div>
+          <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 10px;">
+            ${filteredTxs.map((tx) => {
+              const isIncome = tx.type === 'income';
+              let methodIcon = '💵';
+              if ((tx.method || '').includes('Transferencia') || (tx.method || '').includes('MP')) methodIcon = '📱';
+              if ((tx.method || '').includes('Tarjeta')) methodIcon = '💳';
+
+              return `
+              <div class="tx-card-item">
+                <div style="flex: 1;">
                   <div class="tx-concept-title">${isIncome ? '🟢' : '🔴'} ${tx.concept}</div>
                   <div class="tx-meta-sub">
-                    📅 ${tx.date} • ${tx.method || 'Efectivo'} ${tx.category ? `• ${tx.category}` : ''}
+                    📅 ${tx.date} • ${methodIcon} ${tx.method || 'Efectivo'} ${tx.category ? `• ${tx.category}` : ''}
                   </div>
                 </div>
                 <div style="display: flex; align-items: center; gap: 8px;">
                   <span class="tx-amount-badge ${isIncome ? 'income' : 'expense'}">
-                    ${isIncome ? '+' : '-'}$${Number(tx.amount).toLocaleString('es-AR')}
+                    ${isIncome ? '+' : '-'}${Number(tx.amount).toLocaleString('es-AR')}
                   </span>
                   <button type="button" style="background: none; border: none; color: #dc2626; cursor: pointer; padding: 2px 4px; font-size: 14px;" onclick="window.handleDeleteTransaction('${tx.id}')" title="Borrar movimiento">
                     ×
@@ -2945,8 +3223,7 @@ function renderPanelFinances() {
                 </div>
               </div>
             `;
-              })
-              .join('')}
+            }).join('')}
           </div>
         `
         }
@@ -2954,6 +3231,38 @@ function renderPanelFinances() {
     </div>
   `;
 }
+
+window.openStoreFinanceConfig = () => {
+  AppState.storeConfigTab = 'finance';
+  window.openPanelSubView('salon');
+};
+
+window.handleCollectPendingWithMethod = async (apptId, method) => {
+  const appt = (AppState.appointments || []).find((a) => a.id === apptId);
+  if (!appt) return;
+
+  appt.depositPaid = true;
+  await DataStore.set('appointments', apptId, appt);
+
+  const txId = 'tx_' + Date.now();
+  const newTx = {
+    id: txId,
+    type: 'income',
+    concept: `Seña turno: ${appt.clientName} (${appt.serviceName})`,
+    amount: Number(appt.depositAmount) || 0,
+    method: method,
+    category: 'Seña',
+    date: getTodayDateStr(),
+    createdAt: new Date().toISOString()
+  };
+
+  await DataStore.set('finances', txId, newTx);
+  if (!AppState.finances) AppState.finances = [];
+  AppState.finances.push(newTx);
+
+  showToast(`✅ Cobro de seña registrado (${method})`);
+  renderApp();
+};
 
 function renderTxModalForm() {
   const isIncome = AppState.txModalType === 'income';

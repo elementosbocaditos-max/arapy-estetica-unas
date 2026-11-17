@@ -3124,3 +3124,194 @@ body.theme-noir .photobank-card {
   border-color: var(--accent-primary);
   transform: scale(1.05);
 }
+
+/* ============================================================================
+   CONFIGURACIÓN DE LA TIENDA & FINANZAS COMPLETO
+   ============================================================================ */
+.header-icon-action {
+  background: rgba(197, 155, 39, 0.12);
+  border: 1px solid var(--gold-line);
+  color: var(--gold-primary);
+  border-radius: 20px;
+  padding: 6px 12px;
+  font-size: 11px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.header-icon-action svg {
+  width: 14px;
+  height: 14px;
+}
+
+.header-icon-action:hover {
+  background: var(--gold-primary);
+  color: #fff;
+}
+
+/* Tabs de Configuración de la Tienda */
+.store-config-tabs {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding: 4px 2px 10px;
+  scrollbar-width: none;
+}
+.store-config-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.store-tab-btn {
+  background: var(--card-bg);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 20px;
+  padding: 8px 14px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--text-muted);
+  cursor: pointer;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.15s ease;
+}
+
+.store-tab-btn.active {
+  background: var(--gold-primary);
+  color: #fff;
+  border-color: var(--gold-primary);
+  box-shadow: 0 4px 12px rgba(197, 155, 39, 0.25);
+}
+
+body.theme-noir .store-tab-btn {
+  background: #1f1d24;
+  border-color: #2b2830;
+  color: #a1a1aa;
+}
+body.theme-noir .store-tab-btn.active {
+  background: var(--gold-primary);
+  color: #121115;
+}
+
+/* Arqueo de Caja / Cierre Diario por Medio de Pago */
+.arqueo-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.arqueo-card {
+  background: var(--card-bg);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  border-radius: 14px;
+  padding: 10px 8px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+body.theme-noir .arqueo-card {
+  border-color: #2b2830;
+}
+
+.arqueo-icon {
+  font-size: 16px;
+  margin-bottom: 2px;
+}
+
+.arqueo-label {
+  font-size: 9.5px;
+  font-weight: 800;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.arqueo-amount {
+  font-size: 13.5px;
+  font-weight: 800;
+  color: var(--text-main);
+  margin-top: 2px;
+}
+
+/* Presets rápidos para porcentaje de seña */
+.quick-preset-btns {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+  flex-wrap: wrap;
+}
+
+.preset-chip-btn {
+  background: rgba(0, 0, 0, 0.04);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 12px;
+  padding: 6px 10px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-main);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.preset-chip-btn:hover, .preset-chip-btn.active {
+  background: var(--gold-soft);
+  border-color: var(--gold-primary);
+  color: var(--gold-primary);
+}
+
+body.theme-noir .preset-chip-btn {
+  background: #232029;
+  border-color: #332f3b;
+  color: #d4d4d8;
+}
+
+/* Strip de cobro rápido de turnos pendientes */
+.pending-collect-strip {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+.btn-collect-quick {
+  flex: 1;
+  min-width: 100px;
+  padding: 7px 8px;
+  font-size: 10.5px;
+  font-weight: 700;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  transition: opacity 0.15s ease;
+}
+
+.btn-collect-quick:hover {
+  opacity: 0.9;
+}
+
+.btn-collect-quick.cash {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.btn-collect-quick.mp {
+  background: #e0f2fe;
+  color: #0369a1;
+}
+
+.btn-collect-quick.card {
+  background: #f3e8ff;
+  color: #7e22ce;
+}
