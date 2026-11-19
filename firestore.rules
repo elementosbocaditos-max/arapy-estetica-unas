@@ -1,46 +1,58 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Datos públicos del salón (nombre, horarios, contacto, seña)
-    match /salon/{document=**} {
+    // ========================================================================
+    // ÓRBITA ARAPY SOLUCIONES — REGLAS MULTI-SALÓN (arapy_salones/{salonId})
+    // Cada salón vive aislado en su propio documento raíz y subcolecciones.
+    // La Consola Master de Arapy gestiona suscripciones (status, expiresAt, plan).
+    // ========================================================================
+    match /arapy_salones/{salonId} {
+      // Lectura pública para resolver slug y validar suscripción activa
       allow read: if true;
-      allow write: if request.auth != null;
-    }
-    
-    // Categorías y Servicios
-    match /categories/{document=**} {
-      allow read: if true;
-      allow write: if request.auth != null;
-    }
-    match /services/{document=**} {
-      allow read: if true;
-      allow write: if request.auth != null;
-    }
+      // Permite actualizar metadata comercial; en producción restringir campos
+      // de suscripción (status, plan, expiresAt) únicamente al admin de Consola Master.
+      allow create, update: if true;
+      allow delete: if request.auth != null;
 
-    // Galería Inspo
-    match /inspo/{document=**} {
-      allow read: if true;
-      allow write: if request.auth != null;
-    }
+      // Configuración del salón (nombre, portada, horarios, alias, tema, PIN)
+      match /salon/{docId} {
+        allow read, write: if true;
+      }
 
-    // Turnos / Agenda
-    match /appointments/{appointmentId} {
-      // Las clientas pueden ver turnos para validar horarios ocupados y pueden agendar
-      allow read, create: if true;
-      // Solo la dueña o usuario autenticado puede actualizar o cancelar turnos
-      allow update, delete: if request.auth != null;
-    }
+      // Categorías, Servicios, Adicionales, Galería Inspo y Banco de Fotos
+      match /categories/{docId} {
+        allow read, write: if true;
+      }
+      match /services/{docId} {
+        allow read, write: if true;
+      }
+      match /addons/{docId} {
+        allow read, write: if true;
+      }
+      match /inspo/{docId} {
+        allow read, write: if true;
+      }
+      match /photoBank/{docId} {
+        allow read, write: if true;
+      }
+      match /blockedSlots/{docId} {
+        allow read, write: if true;
+      }
 
-    // Fichas de Clientas
-    match /clients/{clientId} {
-      // Se crean al reservar, lectura y edición restringida a la dueña
-      allow create: if true;
-      allow read, update, delete: if request.auth != null;
-    }
+      // Turnos / Agenda (las clientas leen horarios ocupados y crean reservas)
+      match /appointments/{appointmentId} {
+        allow read, create, update, delete: if true;
+      }
 
-    // Finanzas, Gastos y Caja
-    match /finances/{document=**} {
-      allow read, write: if request.auth != null;
+      // Fichas de Clientas (se crean y actualizan automáticamente al reservar)
+      match /clients/{clientId} {
+        allow read, create, update, delete: if true;
+      }
+
+      // Finanzas, Gastos y Caja
+      match /finances/{docId} {
+        allow read, write: if true;
+      }
     }
   }
 }

@@ -2,7 +2,16 @@
 // BEAUTY & NAIL STUDIO — CORE APPLICATION ENGINE (PASO 2)
 // Gestión Completa: Datos del Salón + Categorías y Servicios + Fotos & Textos
 // ============================================================================
-import { initFirebase, DataStore } from './firebase-config.js';
+import {
+  initFirebase,
+  DataStore,
+  TenantManager,
+  ARAPY_CONFIG,
+  getActiveSalonId,
+  getSalonPublicUrl,
+  isFirebaseConnected,
+  normalizeSlug
+} from './firebase-config.js';
 
 
 // ============================================================================
@@ -94,9 +103,17 @@ const AppState = {
   pinDraft: '',
   pinError: '',
   toastMessage: null,
+  subscription: {
+    allowed: true,
+    status: 'active',
+    plan: 'estandar',
+    expiresAt: null,
+    reason: ''
+  },
 
   // Datos del Salón (Editables 100% por la dueña)
   salon: {
+    slug: getActiveSalonId(),
     name: 'Nombre de tu Salón',
     tagline: 'Tu espacio de belleza y cuidado personal',
     address: 'Av. Principal 1234, Local 5',
@@ -1511,6 +1528,33 @@ function renderPanel() {
         </div>
       </div>
 
+      <!-- Tarjeta Rápida: Compartir Link a Clientas (Multi-Salón Arapy) -->
+      <div class="form-card gold-card" style="margin: 0 18px 14px; padding: 14px;">
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px;">
+          <div style="display: flex; align-items: center; gap: 6px;">
+            <span style="font-size: 14px;">🔗</span>
+            <strong style="font-size: 12.5px; color: var(--text-main); letter-spacing: 0.02em;">Compartir Link a Clientas</strong>
+          </div>
+          <span class="gold-badge" style="font-size: 9.5px; padding: 2px 7px;">
+            ${isFirebaseConnected() ? '🔥 Firebase Activo' : '💾 Modo Local'}
+          </span>
+        </div>
+        <div style="background: rgba(197, 155, 39, 0.08); border: 1px dashed var(--gold-line); border-radius: 10px; padding: 8px 10px; font-size: 11px; font-family: monospace; color: var(--text-main); word-break: break-all; margin-bottom: 10px;">
+          ${getSalonPublicUrl()}
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr auto; gap: 6px;">
+          <button type="button" class="btn-primary-action btn-gold-shimmer" style="padding: 9px 10px; font-size: 11.5px;" onclick="window.copySalonShareLink()">
+            📋 Copiar Link
+          </button>
+          <button type="button" class="btn-primary-action" style="padding: 9px 10px; font-size: 11.5px; background: #16a34a;" onclick="window.shareSalonLinkWhatsApp()">
+            💬 WhatsApp
+          </button>
+          <button type="button" class="btn-secondary-action" style="padding: 9px 10px; font-size: 11.5px;" onclick="window.openSalonLinkEditor()" title="Editar nombre en el link">
+            ✏️ Editar
+          </button>
+        </div>
+      </div>
+
       <div style="padding: 0 18px 10px;">
         <span style="font-size: 11px; font-weight: 800; color: var(--accent-dark); letter-spacing: 0.08em; text-transform: uppercase;">
           Gestión Integral • ${AppState.salon.name || 'tu Salón'}
@@ -2229,6 +2273,50 @@ function renderPanelSalon() {
 
         <!-- PESTAÑA 1: DATOS DEL NEGOCIO -->
         ${currentTab === 'general' ? `
+          <!-- TARJETA LINK PERSONALIZADO MULTI-SALÓN (ARAPY SOLUCIONES) -->
+          <form class="form-card gold-card" id="salon-link-editor-card" style="margin-bottom: 14px;" onsubmit="window.handleSaveSalonSlug(event)">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px;">
+              <h3>🔗 Link Personalizado del Salón</h3>
+              <span class="gold-badge" style="font-size: 10px;">Arapy Multi-Salón</span>
+            </div>
+            <p class="form-card-sub">
+              Elegí el nombre único que aparecerá en el link para tus clientas. Todos tus datos quedan guardados bajo este identificador en la nube:
+            </p>
+
+            <div class="form-group-clean">
+              <label>Nombre en el Link (sin espacios ni tildes)</label>
+              <input
+                type="text"
+                id="store-slug-input"
+                value="${getActiveSalonId()}"
+                placeholder="Ej: estetic-y-unas"
+                oninput="window.previewSalonSlug(this.value)"
+                required
+              />
+              <div style="margin-top: 6px; background: rgba(197, 155, 39, 0.08); border: 1px dashed var(--gold-line); border-radius: 8px; padding: 7px 9px; font-size: 11px; font-family: monospace; color: var(--text-main); word-break: break-all;">
+                <span style="font-family: inherit; font-weight: 700; color: var(--gold-primary); display: block; margin-bottom: 2px;">Vista previa del enlace:</span>
+                <span id="store-slug-preview">${getSalonPublicUrl()}</span>
+              </div>
+            </div>
+
+            <button type="submit" class="btn-primary-action btn-gold-shimmer" style="width: 100%; margin-top: 4px;">
+              💾 Guardar Nombre del Link
+            </button>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px;">
+              <button type="button" class="btn-secondary-action" style="padding: 9px 10px; font-size: 11.5px;" onclick="window.copySalonShareLink()">
+                📋 Copiar Link
+              </button>
+              <button type="button" class="btn-primary-action" style="padding: 9px 10px; font-size: 11.5px; background: #16a34a;" onclick="window.shareSalonLinkWhatsApp()">
+                💬 Enviar por WhatsApp
+              </button>
+            </div>
+
+            <p style="font-size: 10.5px; color: var(--text-muted); margin-top: 8px;">
+              Estado nube: <strong>${isFirebaseConnected() ? '🔥 Conectado a Firebase Arapy Soluciones' : '💾 Modo local (al pegar tus claves en firebase-config.js se sincroniza automático)'}</strong>
+            </p>
+          </form>
+
           <form class="form-card gold-card" onsubmit="window.handleSaveStoreGeneral(event)">
             <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px;">
               <h3>🏪 Identidad Comercial del Salón</h3>
@@ -2428,6 +2516,87 @@ window.setDepositPreset = (percent) => {
   if (input) input.value = percent;
 };
 
+window.previewSalonSlug = (rawVal) => {
+  const preview = document.getElementById('store-slug-preview');
+  if (!preview) return;
+  const clean = normalizeSlug(rawVal) || getActiveSalonId();
+  preview.textContent = getSalonPublicUrl(clean);
+};
+
+window.handleSaveSalonSlug = async (e) => {
+  e.preventDefault();
+  const input = document.getElementById('store-slug-input');
+  const rawVal = input?.value?.trim() || '';
+  const clean = normalizeSlug(rawVal);
+
+  if (!clean || clean.length < 3) {
+    showToast('⚠️ Escribí al menos 3 letras o números para el link');
+    return;
+  }
+
+  const result = await TenantManager.renameSalonSlug(clean, {
+    ...AppState.salon,
+    slug: clean,
+    isDemo: false
+  });
+
+  if (!result.ok) {
+    showToast(`⚠️ ${result.error}`);
+    return;
+  }
+
+  AppState.salon = {
+    ...AppState.salon,
+    slug: result.slug,
+    isDemo: false
+  };
+  showToast(`🔗 ¡Link actualizado! ?salon=${result.slug}`);
+  renderApp();
+};
+
+window.copySalonShareLink = async () => {
+  const url = getSalonPublicUrl();
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(url);
+    } else {
+      const ta = document.createElement('textarea');
+      ta.value = url;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+    }
+    showToast('📋 ¡Link copiado! Pegalo en tu Instagram o WhatsApp');
+  } catch {
+    showToast('🔗 Link listo: ' + url);
+  }
+};
+
+window.shareSalonLinkWhatsApp = () => {
+  const salonName = AppState.salon.name || 'nuestro salón';
+  const url = getSalonPublicUrl();
+  const text =
+    `✨ ¡Hola! Te comparto el link de *${salonName}* para ver nuestros servicios, diseños y agendar tu turno online:\n\n` +
+    `🔗 ${url}\n\n` +
+    `¡Te esperamos! 💕`;
+  window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+};
+
+window.openSalonLinkEditor = () => {
+  AppState.storeConfigTab = 'general';
+  window.openPanelSubView('salon');
+  setTimeout(() => {
+    const input = document.getElementById('store-slug-input');
+    if (input) {
+      input.focus();
+      input.select();
+    }
+  }, 80);
+};
+
 window.handleSaveStoreGeneral = async (e) => {
   e.preventDefault();
   const name = document.getElementById('store-name-input')?.value.trim();
@@ -2437,13 +2606,17 @@ window.handleSaveStoreGeneral = async (e) => {
 
   AppState.salon = {
     ...AppState.salon,
+    slug: getActiveSalonId(),
     name,
     tagline,
     address,
-    phone
+    phone,
+    isDemo: false
   };
 
   await DataStore.set('salon', 'config', AppState.salon);
+  await TenantManager.syncTenantMetadata(AppState.salon);
+  document.title = `${AppState.salon.name || 'ARAPY Estética'} — Turnos Online`;
   showToast('✅ Identidad comercial de la tienda guardada');
   renderApp();
 };
@@ -2458,7 +2631,8 @@ window.handleSaveStoreHours = async (e) => {
     ...AppState.salon,
     workingDays,
     openTime,
-    closeTime
+    closeTime,
+    isDemo: false
   };
 
   await DataStore.set('salon', 'config', AppState.salon);
@@ -2480,7 +2654,8 @@ window.handleSaveStoreFinance = async (e) => {
     aliasHolder,
     cuit,
     depositPercent,
-    cashDiscount
+    cashDiscount,
+    isDemo: false
   };
 
   await DataStore.set('salon', 'config', AppState.salon);
@@ -2503,6 +2678,7 @@ window.handleSaveStorePIN = async (e) => {
   }
 
   AppState.salon.pin = p1;
+  AppState.salon.isDemo = false;
   await DataStore.set('salon', 'config', AppState.salon);
   showToast('🔒 ¡Nuevo PIN guardado con éxito!');
   renderApp();
@@ -2511,6 +2687,7 @@ window.handleSaveStorePIN = async (e) => {
 window.selectThemePalette = (theme) => {
   applyTheme(theme);
   AppState.salon.themeColor = theme;
+  AppState.salon.isDemo = false;
   DataStore.set('salon', 'config', AppState.salon);
   showToast(`🎨 Color actualizado: ${getPaletteName(theme)}`);
   renderApp();
@@ -4264,12 +4441,48 @@ function renderBookingSuccessModal() {
   `;
 }
 
+function renderSubscriptionPausedScreen() {
+  const sub = AppState.subscription || {};
+  const salonName = AppState.salon?.name || getActiveSalonId();
+  const supportPhone = (ARAPY_CONFIG.supportWhatsapp || '').replace(/\D/g, '');
+  const waMsg = `Hola Arapy Soluciones, quiero reactivar o consultar la suscripción del salón "${salonName}" (link: ${getActiveSalonId()}).`;
+  const waUrl = supportPhone
+    ? `https://wa.me/${supportPhone}?text=${encodeURIComponent(waMsg)}`
+    : `https://wa.me/?text=${encodeURIComponent(waMsg)}`;
+
+  return `
+    <div style="min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; background: var(--bg-main, #faf7f2); text-align: center;">
+      <div class="form-card gold-card" style="max-width: 380px; width: 100%; padding: 26px 22px;">
+        <div style="font-size: 40px; margin-bottom: 10px;">⏳</div>
+        <span class="gold-badge" style="font-size: 10px; margin-bottom: 10px; display: inline-block;">ARAPY SOLUCIONES</span>
+        <h2 style="font-family: 'Playfair Display', serif; font-size: 21px; margin: 8px 0 6px; color: var(--text-main);">
+          ${sub.status === 'expired' ? 'Suscripción Vencida' : 'Salón Temporalmente Pausado'}
+        </h2>
+        <p style="font-size: 13px; color: var(--text-muted); line-height: 1.5; margin: 0 0 18px;">
+          ${sub.reason || 'Este espacio se encuentra momentáneamente inactivo.'}
+        </p>
+        <a href="${waUrl}" target="_blank" rel="noopener noreferrer" class="btn-primary-action" style="display: block; text-decoration: none; background: #16a34a; padding: 12px 16px; border-radius: 12px; font-weight: 700;">
+          💬 Contactar a Arapy Soluciones
+        </a>
+        <p style="font-size: 10.5px; color: var(--text-muted); margin-top: 12px;">
+          Salón: <strong>${getActiveSalonId()}</strong> • Tus datos están protegidos en la nube.
+        </p>
+      </div>
+    </div>
+  `;
+}
+
 // ============================================================================
 // RENDERIZADO PRINCIPAL DE LA APLICACIÓN
 // ============================================================================
 function renderApp() {
   const root = document.getElementById('app-root');
   if (!root) return;
+
+  if (AppState.subscription && AppState.subscription.allowed === false) {
+    root.innerHTML = renderSubscriptionPausedScreen();
+    return;
+  }
 
   let screenContent = '';
   switch (AppState.activeScreen) {
@@ -4350,22 +4563,32 @@ async function startApp() {
   }
 
   try {
+    AppState.subscription = await TenantManager.checkSubscription();
+
     const savedSalon = await DataStore.get('salon', 'config');
-    if (savedSalon && !savedSalon.isDemo && savedSalon.themeColor !== 'rose') {
-      AppState.salon = { ...AppState.salon, ...savedSalon };
+    if (savedSalon && !savedSalon.isDemo) {
+      AppState.salon = {
+        ...AppState.salon,
+        ...savedSalon,
+        slug: getActiveSalonId()
+      };
     } else {
       AppState.salon = {
         ...AppState.salon,
-        name: 'Maison de Beauté',
-        tagline: 'Rituels de beauté exclusifs • Soins signature sur rendez-vous',
-        splashTitle: "L'Art de la Beauté,",
-        splashSubtitle: 'Uñas & Peluquería de Autor',
-        themeColor: 'champagne',
-        splashHero: './assets/splash-hero.jpg',
+        slug: getActiveSalonId(),
+        name: savedSalon?.name || 'Maison de Beauté',
+        tagline: savedSalon?.tagline || 'Rituels de beauté exclusifs • Soins signature sur rendez-vous',
+        splashTitle: savedSalon?.splashTitle || "L'Art de la Beauté,",
+        splashSubtitle: savedSalon?.splashSubtitle || 'Uñas & Peluquería de Autor',
+        themeColor: savedSalon?.themeColor || 'champagne',
+        splashHero: savedSalon?.splashHero || './assets/splash-hero.jpg',
         isDemo: true
       };
       await DataStore.set('salon', 'config', AppState.salon);
     }
+
+    document.title = `${AppState.salon.name || 'ARAPY Estética'} — Turnos Online`;
+    TenantManager.syncTenantMetadata(AppState.salon);
 
     applyTheme(AppState.salon.themeColor || 'champagne');
 
