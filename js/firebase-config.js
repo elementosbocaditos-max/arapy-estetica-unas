@@ -481,23 +481,24 @@ export const TenantManager = {
     const reg = getLocalRegistry();
     const existing = reg[salonId] || {};
 
-    const record = {
+    // Campos estrictamente permitidos por isValidStoreRegistration en firestore.rules de arapy-soluciones
+    const firestoreCreatePayload = {
       slug: salonId,
       nombre: salonConfig?.name || existing.nombre || salonId,
       name: salonConfig?.name || existing.name || salonId,
       rubro: ARAPY_CONFIG.rubro,
-      appId: ARAPY_CONFIG.appId,
       telefono: salonConfig?.phone || existing.telefono || '',
       phone: salonConfig?.phone || existing.phone || '',
       email: salonConfig?.email || existing.email || '',
-      publicUrl: getSalonPublicUrl(salonId),
+      active: true,
       createdAt: existing.createdAt || nowIso,
-      updatedAt: nowIso
+      suscripcion: existing.suscripcion || crearSuscripcionInicial(ARAPY_CONFIG.defaultTrialDays)
     };
 
     reg[salonId] = {
-      ...record,
-      suscripcion: existing.suscripcion || crearSuscripcionInicial(ARAPY_CONFIG.defaultTrialDays)
+      ...firestoreCreatePayload,
+      publicUrl: getSalonPublicUrl(salonId),
+      updatedAt: nowIso
     };
     saveLocalRegistry(reg);
 
@@ -506,24 +507,18 @@ export const TenantManager = {
         const ref = firestoreMod.doc(db, ARAPY_CONFIG.registryCollection, salonId);
         const snap = await firestoreMod.getDoc(ref);
         if (!snap.exists()) {
-          // Registro inicial nuevo: incluye trial de 30 días compatible con ArapyMasterConsole
-          await firestoreMod.setDoc(ref, {
-            ...record,
-            suscripcion: crearSuscripcionInicial(ARAPY_CONFIG.defaultTrialDays)
-          });
+          // Registro inicial nuevo: cumple 100% con isValidStoreRegistration()
+          await firestoreMod.setDoc(ref, firestoreCreatePayload);
         } else {
           // Actualización comercial: NUNCA sobreescribe suscripcion ni createdAt gestionados por Consola Master
           await firestoreMod.setDoc(
             ref,
             {
-              nombre: record.nombre,
-              name: record.name,
-              rubro: record.rubro,
-              appId: record.appId,
-              telefono: record.telefono,
-              phone: record.phone,
-              publicUrl: record.publicUrl,
-              updatedAt: nowIso
+              nombre: firestoreCreatePayload.nombre,
+              name: firestoreCreatePayload.name,
+              rubro: firestoreCreatePayload.rubro,
+              telefono: firestoreCreatePayload.telefono,
+              phone: firestoreCreatePayload.phone
             },
             { merge: true }
           );
