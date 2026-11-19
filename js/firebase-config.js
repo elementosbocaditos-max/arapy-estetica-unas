@@ -3,6 +3,7 @@
 // Conectado al ecosistema oficial de Arapy Soluciones + Consola Master
 // ============================================================================
 
+// Proyecto Firebase donde guarda los datos operativos de cada salón (arapy_salones/{salonId}/...)
 export const firebaseConfig = {
   apiKey: "AIzaSyDMJqy2Zdvih-Unk15WHZwBbOhL6unuOFE",
   authDomain: "arapy-soluciones.firebaseapp.com",
@@ -10,6 +11,17 @@ export const firebaseConfig = {
   storageBucket: "arapy-soluciones.firebasestorage.app",
   messagingSenderId: "655722100063",
   appId: "1:655722100063:web:001a30c069855340d4f2ea"
+};
+
+// Proyecto Firebase REAL que lee/escribe la Consola Master (https://arapysl.web.app/#master)
+// Detectado en genericos/.env.local (donde vive Don Santiago y tiendas_registradas)
+export const masterConsoleFirebaseConfig = {
+  apiKey: "AIzaSyCkOqnde7drrtDNaSwSWWr261JckoKpugk",
+  authDomain: "gastroelementos03.firebaseapp.com",
+  projectId: "gastroelementos03",
+  storageBucket: "gastroelementos03.firebasestorage.app",
+  messagingSenderId: "1011842610088",
+  appId: "1:1011842610088:web:044969993105a7bc7ba39d"
 };
 
 // ============================================================================
@@ -186,6 +198,7 @@ export function evaluarSuscripcion(s, now = new Date()) {
 // INICIALIZADOR Y DRIVER DE BASE DE DATOS (FIRESTORE + CACHÉ LOCAL RÁPIDA)
 // ============================================================================
 let db = null;
+let masterDb = null;
 let auth = null;
 let storage = null;
 let firestoreMod = null;
@@ -206,7 +219,7 @@ export function isFirebaseConnected() {
 
 export async function initFirebase() {
   if (isFirebaseLive && db) {
-    return { db, auth, storage, isFirebaseLive: true };
+    return { db, masterDb, auth, storage, isFirebaseLive: true };
   }
   if (hasValidConfig()) {
     try {
@@ -218,23 +231,39 @@ export async function initFirebase() {
       ]);
 
       firestoreMod = fsMod;
-      const app = appMod.getApps().length > 0 ? appMod.getApp() : appMod.initializeApp(firebaseConfig);
+      const app = appMod.getApps().find((a) => a.name === '[DEFAULT]') || appMod.initializeApp(firebaseConfig);
       try {
         db = fsMod.initializeFirestore(app, { ignoreUndefinedProperties: true });
       } catch {
         db = fsMod.getFirestore(app);
       }
+
+      // Instancia secundaria para Consola Master (gastroelementos03 -> https://arapysl.web.app/#master)
+      try {
+        const masterApp =
+          appMod.getApps().find((a) => a.name === 'arapy-master-console') ||
+          appMod.initializeApp(masterConsoleFirebaseConfig, 'arapy-master-console');
+        try {
+          masterDb = fsMod.initializeFirestore(masterApp, { ignoreUndefinedProperties: true });
+        } catch {
+          masterDb = fsMod.getFirestore(masterApp);
+        }
+      } catch (mErr) {
+        console.warn('⚠️ [Consola Master] Fallback al proyecto principal:', mErr);
+        masterDb = db;
+      }
+
       auth = authMod.getAuth(app);
       storage = stMod.getStorage(app);
       isFirebaseLive = true;
-      console.log(`🔥 [Firebase Arapy]: Conectado en vivo a ${firebaseConfig.projectId} (Salón: ${activeSalonId})`);
-      return { db, auth, storage, isFirebaseLive: true };
+      console.log(`🔥 [Firebase Arapy]: Datos en ${firebaseConfig.projectId} + Consola Master en ${masterConsoleFirebaseConfig.projectId} (Salón: ${activeSalonId})`);
+      return { db, masterDb, auth, storage, isFirebaseLive: true };
     } catch (err) {
       console.warn('⚠️ [Firebase] Error inicializando SDK, usando caché local aislada:', err);
       isFirebaseLive = false;
     }
   }
-  return { db: null, auth: null, storage: null, isFirebaseLive: false };
+  return { db: null, masterDb: null, auth: null, storage: null, isFirebaseLive: false };
 }
 
 function getLocalPrefix(salonId = activeSalonId) {
@@ -502,15 +531,14 @@ export const TenantManager = {
     };
     saveLocalRegistry(reg);
 
-    if (isFirebaseLive && db && firestoreMod) {
-      try {
-        const ref = firestoreMod.doc(db, ARAPY_CONFIG.registryCollection, salonId);
+    const targetMasterDb = masterDb || db;
+    if (isFirebaseLive && targetMasterDb && firestoreMod) {
+      const writeToDb = async (firestoreInstance) => {
+        const ref = firestoreMod.doc(firestoreInstance, ARAPY_CONFIG.registryCollection, salonId);
         const snap = await firestoreMod.getDoc(ref);
         if (!snap.exists()) {
-          // Registro inicial nuevo: cumple 100% con isValidStoreRegistration()
           await firestoreMod.setDoc(ref, firestoreCreatePayload);
         } else {
-          // Actualización comercial: NUNCA sobreescribe suscripcion ni createdAt gestionados por Consola Master
           await firestoreMod.setDoc(
             ref,
             {
@@ -523,6 +551,15 @@ export const TenantManager = {
             { merge: true }
           );
         }
+      };
+
+      try {
+        // 1. Escribir en la Consola Master real (gastroelementos03 -> https://arapysl.web.app/#master)
+        await writeToDb(targetMasterDb);
+        // 2. Espejar en arapy-soluciones si son proyectos distintos
+        if (db && targetMasterDb !== db) {
+          writeToDb(db).catch(() => {});
+        }
         return { ok: true, slug: salonId, syncedToCloud: true, record: reg[salonId] };
       } catch (err) {
         console.warn('Aviso sincronizando con tiendas_registradas (Consola Master):', err);
@@ -532,7 +569,7 @@ export const TenantManager = {
     return { ok: true, slug: salonId, syncedToCloud: false, record: reg[salonId] };
   },
 
-  // Evalúa la suscripción en tiempo real desde tiendas_registradas/{salonId}
+  // Evalúa la suscripción en tiempo real desde tiendas_registradas/{salonId} (Consola Master)
   async checkSubscription(salonId = activeSalonId) {
     if (!salonId || salonId === ARAPY_CONFIG.defaultSalonId) {
       return { allowed: true, status: 'trial', plan: 'demo', diasRestantes: 30, reason: '' };
@@ -540,11 +577,12 @@ export const TenantManager = {
 
     const reg = getLocalRegistry();
     let suscripcion = reg[salonId]?.suscripcion || null;
+    const targetMasterDb = masterDb || db;
 
-    if (isFirebaseLive && db && firestoreMod) {
+    if (isFirebaseLive && targetMasterDb && firestoreMod) {
       try {
         const snap = await firestoreMod.getDoc(
-          firestoreMod.doc(db, ARAPY_CONFIG.registryCollection, salonId)
+          firestoreMod.doc(targetMasterDb, ARAPY_CONFIG.registryCollection, salonId)
         );
         if (snap.exists()) {
           const data = snap.data();
@@ -572,10 +610,11 @@ export const TenantManager = {
       return { ok: true, same: true };
     }
 
-    if (isFirebaseLive && db && firestoreMod) {
+    const targetMasterDb = masterDb || db;
+    if (isFirebaseLive && targetMasterDb && firestoreMod) {
       try {
         const snap = await firestoreMod.getDoc(
-          firestoreMod.doc(db, ARAPY_CONFIG.registryCollection, clean)
+          firestoreMod.doc(targetMasterDb, ARAPY_CONFIG.registryCollection, clean)
         );
         if (snap.exists()) {
           return { ok: false, reason: `El link "${clean}" ya está registrado por otro comercio en Arapy.` };

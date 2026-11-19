@@ -1585,7 +1585,7 @@ function renderPanel() {
             🔄 Sincronizar Consola
           </button>
           <button type="button" class="btn-secondary-action" style="padding: 8px 8px; font-size: 11px;" onclick="window.handleForceUpdateApp()">
-            ⚡ Actualizar App (v4.2)
+            ⚡ Actualizar App (v4.3)
           </button>
         </div>
       </div>
