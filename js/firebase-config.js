@@ -1,30 +1,32 @@
 // ============================================================================
-// ARCHIVO AISLADO: CONFIGURACIÓN DE FIREBASE & ARAPY SOLUCIONES (MULTI-SALÓN)
-// Pegá acá los datos de tu proyecto de Firebase de Arapy Soluciones:
+// ARCHIVO AISLADO: CONFIGURACIÓN OFICIAL DE FIREBASE — ARAPY SOLUCIONES
+// Conectado al ecosistema oficial de Arapy Soluciones + Consola Master
 // ============================================================================
 
 export const firebaseConfig = {
-  apiKey: "TU_API_KEY_AQUI",
-  authDomain: "TU_PROJECT_ID.firebaseapp.com",
-  projectId: "TU_PROJECT_ID",
-  storageBucket: "TU_PROJECT_ID.appspot.com",
-  messagingSenderId: "TU_SENDER_ID",
-  appId: "TU_APP_ID"
+  apiKey: "AIzaSyDMJqy2Zdvih-Unk15WHZwBbOhL6unuOFE",
+  authDomain: "arapy-soluciones.firebaseapp.com",
+  projectId: "arapy-soluciones",
+  storageBucket: "arapy-soluciones.firebasestorage.app",
+  messagingSenderId: "655722100063",
+  appId: "1:655722100063:web:001a30c069855340d4f2ea"
 };
 
 // ============================================================================
 // CONFIGURACIÓN DE ÓRBITA ARAPY SOLUCIONES & CONSOLA MASTER
-// Ajustá estos nombres si tu Consola Master usa otra colección raíz:
 // ============================================================================
 export const ARAPY_CONFIG = {
   appId: 'arapy-estetica-unas',
   appName: 'ARAPY Estética & Uñas',
-  // Colección raíz en Firestore donde Consola Master gestiona cada salón/suscripción
+  rubro: 'estetica-unas',
+  // Colección raíz que escucha en tiempo real ArapyMasterConsole (https://arapysl.web.app/#master)
+  registryCollection: 'tiendas_registradas',
+  // Colección aislada para los datos operativos de cada salón (turnos, clientas, servicios, fotos, caja)
   tenantsCollection: 'arapy_salones',
-  // Salón por defecto cuando alguien ingresa sin ?salon= en la URL
   defaultSalonId: 'demo',
-  // WhatsApp de soporte de Arapy Soluciones (para renovar suscripciones vencidas)
-  supportWhatsapp: '5491123456789'
+  defaultTrialDays: 30,
+  // WhatsApp oficial de Arapy Soluciones
+  supportWhatsapp: '5493751541211'
 };
 
 // ============================================================================
@@ -32,18 +34,19 @@ export const ARAPY_CONFIG = {
 // ============================================================================
 const LAST_SALON_KEY = 'arapy_estetica::last_salon_id';
 const LOCAL_REGISTRY_KEY = 'arapy_estetica::tenants_registry';
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 export function normalizeSlug(raw) {
   if (!raw || typeof raw !== 'string') return '';
   return raw
     .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '') // Quitar acentos (uñas -> unas)
+    .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase()
-    .replace(/[^a-z0-9\s-]/g, '')    // Solo letras, números, espacios y guiones
+    .replace(/[^a-z0-9\s-]/g, '')
     .trim()
-    .replace(/\s+/g, '-')            // Espacios -> guiones
-    .replace(/-+/g, '-')             // Guiones repetidos -> uno solo
-    .replace(/^-|-$/g, '')           // Sin guiones al inicio o final
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
     .slice(0, 40);
 }
 
@@ -59,7 +62,6 @@ export function resolveSalonIdFromUrl() {
       }
     }
 
-    // Soporte opcional para hash (#/nombre-salon)
     if (window.location.hash && window.location.hash.startsWith('#/')) {
       const hashSlug = normalizeSlug(window.location.hash.slice(2).split(/[/?]/)[0]);
       if (hashSlug) {
@@ -109,12 +111,84 @@ export function getSalonPublicUrl(slug = activeSalonId) {
 }
 
 // ============================================================================
-// INICIALIZADOR Y DRIVER DE BASE DE DATOS
-// Soporta Firestore Multi-Salón en tiempo real + Fallback aislado en LocalStorage
+// MOTOR DE SUSCRIPCIÓN COMPATIBLE 100% CON CONSOLA MASTER ARAPY
+// (Espejo exacto de genericos/src/master/persistence/suscripcion.ts)
+// ============================================================================
+export function crearSuscripcionInicial(diasPrueba = ARAPY_CONFIG.defaultTrialDays) {
+  const inicio = new Date();
+  const fin = new Date(inicio.getTime() + diasPrueba * DAY_MS);
+  return {
+    estado: 'trial',
+    trialInicio: inicio.toISOString(),
+    trialFin: fin.toISOString(),
+    activoHasta: fin.toISOString(),
+    planId: 'trial',
+    precioAbonadoARS: 0
+  };
+}
+
+export function evaluarSuscripcion(s, now = new Date()) {
+  if (!s) {
+    return { allowed: true, status: 'trial', plan: 'trial', diasRestantes: ARAPY_CONFIG.defaultTrialDays, reason: '' };
+  }
+
+  const estado = (s.estado || 'activa').toLowerCase();
+  if (estado === 'suspendida' || estado === 'suspended' || estado === 'paused') {
+    return {
+      allowed: false,
+      status: 'suspended',
+      plan: s.planId || 'trial',
+      diasRestantes: 0,
+      reason: 'Esta tienda se encuentra temporalmente pausada desde la Consola Master de Arapy Soluciones.'
+    };
+  }
+  if (estado === 'cancelada') {
+    return {
+      allowed: false,
+      status: 'suspended',
+      plan: s.planId || 'trial',
+      diasRestantes: 0,
+      reason: 'La suscripción de este salón fue cancelada. Contactá a Arapy Soluciones para reactivarla.'
+    };
+  }
+
+  if (estado === 'trial') {
+    const hasta = s.trialFin ? new Date(s.trialFin) : null;
+    if (!hasta || Number.isNaN(hasta.getTime()) || now.getTime() <= hasta.getTime()) {
+      const dias = hasta ? Math.max(1, Math.ceil((hasta.getTime() - now.getTime()) / DAY_MS)) : ARAPY_CONFIG.defaultTrialDays;
+      return { allowed: true, status: 'trial', plan: s.planId || 'trial', diasRestantes: dias, reason: '' };
+    }
+    return {
+      allowed: false,
+      status: 'expired',
+      plan: s.planId || 'trial',
+      diasRestantes: 0,
+      reason: 'Finalizó el período de prueba de 30 días. Comunicate con Arapy Soluciones para activar tu plan.'
+    };
+  }
+
+  // estado === 'activa'
+  const hasta = s.activoHasta ? new Date(s.activoHasta) : null;
+  if (!hasta || Number.isNaN(hasta.getTime()) || now.getTime() <= hasta.getTime()) {
+    const dias = hasta ? Math.max(1, Math.ceil((hasta.getTime() - now.getTime()) / DAY_MS)) : 30;
+    return { allowed: true, status: 'active', plan: s.planId || 'mensual', diasRestantes: dias, reason: '' };
+  }
+  return {
+    allowed: false,
+    status: 'expired',
+    plan: s.planId || 'mensual',
+    diasRestantes: 0,
+    reason: 'Tu suscripción mensual/anual ha vencido. Comunicate con Arapy Soluciones para renovarla.'
+  };
+}
+
+// ============================================================================
+// INICIALIZADOR Y DRIVER DE BASE DE DATOS (FIRESTORE + CACHÉ LOCAL RÁPIDA)
 // ============================================================================
 let db = null;
 let auth = null;
 let storage = null;
+let firestoreMod = null;
 let isFirebaseLive = false;
 
 const hasValidConfig = () => {
@@ -131,36 +205,38 @@ export function isFirebaseConnected() {
 }
 
 export async function initFirebase() {
+  if (isFirebaseLive && db) {
+    return { db, auth, storage, isFirebaseLive: true };
+  }
   if (hasValidConfig()) {
     try {
-      const { initializeApp } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js');
-      const { getFirestore } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
-      const { getAuth } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js');
-      const { getStorage } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js');
+      const [appMod, fsMod, authMod, stMod] = await Promise.all([
+        import('https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js'),
+        import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'),
+        import('https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js'),
+        import('https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js')
+      ]);
 
-      const app = initializeApp(firebaseConfig);
-      db = getFirestore(app);
-      auth = getAuth(app);
-      storage = getStorage(app);
+      firestoreMod = fsMod;
+      const app = appMod.getApps().length > 0 ? appMod.getApp() : appMod.initializeApp(firebaseConfig);
+      try {
+        db = fsMod.initializeFirestore(app, { ignoreUndefinedProperties: true });
+      } catch {
+        db = fsMod.getFirestore(app);
+      }
+      auth = authMod.getAuth(app);
+      storage = stMod.getStorage(app);
       isFirebaseLive = true;
       console.log(`🔥 [Firebase Arapy]: Conectado en vivo a ${firebaseConfig.projectId} (Salón: ${activeSalonId})`);
       return { db, auth, storage, isFirebaseLive: true };
     } catch (err) {
-      console.warn('⚠️ [Firebase] Error inicializando SDK, usando almacenamiento local aislado:', err);
+      console.warn('⚠️ [Firebase] Error inicializando SDK, usando caché local aislada:', err);
       isFirebaseLive = false;
     }
-  } else {
-    console.log(`ℹ️ [Firebase Arapy]: Esperando claves en firebase-config.js. Modo local multi-salón activo (Salón: ${activeSalonId}).`);
-    isFirebaseLive = false;
   }
   return { db: null, auth: null, storage: null, isFirebaseLive: false };
 }
 
-// ----------------------------------------------------------------------------
-// HELPERS DE PREFIJO AISLADO POR SALÓN
-// En Firestore: arapy_salones/{salonId}/{collection}/{docId}
-// En LocalStorage: arapy_estetica::{salonId}::{collection}_{docId}
-// ----------------------------------------------------------------------------
 function getLocalPrefix(salonId = activeSalonId) {
   return `arapy_estetica::${salonId}::`;
 }
@@ -177,63 +253,87 @@ function saveLocalRegistry(reg) {
   try {
     localStorage.setItem(LOCAL_REGISTRY_KEY, JSON.stringify(reg));
   } catch (err) {
-    console.warn('Error guardando registro local de salones:', err);
+    console.warn('Error guardando registro local:', err);
   }
 }
 
-// Migración transparente desde el formato antiguo (v3.8 single-salon) al salón activo
+// Migración transparente desde formato v3.8 single-salon al salón activo
 function migrateLegacyLocalStorageIfNeeded(salonId) {
   const LEGACY_PREFIX = 'beauty_studio_db::';
   const targetPrefix = getLocalPrefix(salonId);
   try {
-    let hasNewData = false;
     for (let i = 0; i < localStorage.length; i++) {
       const k = localStorage.key(i);
-      if (k && k.startsWith(targetPrefix)) {
-        hasNewData = true;
-        break;
-      }
+      if (k && k.startsWith(targetPrefix)) return;
     }
-    if (hasNewData) return;
-
-    const legacyKeys = [];
+    if (salonId !== ARAPY_CONFIG.defaultSalonId) return;
     for (let i = 0; i < localStorage.length; i++) {
       const k = localStorage.key(i);
       if (k && k.startsWith(LEGACY_PREFIX)) {
-        legacyKeys.push(k);
-      }
-    }
-    if (legacyKeys.length > 0 && salonId === ARAPY_CONFIG.defaultSalonId) {
-      for (const k of legacyKeys) {
-        const suffix = k.slice(LEGACY_PREFIX.length);
         const val = localStorage.getItem(k);
-        if (val !== null) {
-          localStorage.setItem(`${targetPrefix}${suffix}`, val);
-        }
+        if (val !== null) localStorage.setItem(`${targetPrefix}${k.slice(LEGACY_PREFIX.length)}`, val);
       }
     }
-  } catch (err) {
-    console.warn('Migración legacy omitida:', err);
+  } catch {
+    // ignore
   }
 }
 
 migrateLegacyLocalStorageIfNeeded(activeSalonId);
 
 // ----------------------------------------------------------------------------
-// ADAPTADOR UNIVERSAL MULTI-SALÓN (Firestore en vivo o LocalStorage aislado)
+// ADAPTADOR UNIVERSAL MULTI-SALÓN (Firestore en vivo + Caché Local instantánea)
 // ----------------------------------------------------------------------------
 export const DataStore = {
+  // Lectura síncrona instantánea desde caché local (para arranque ultrarrápido <50ms)
+  getLocal(collection, id, salonId = activeSalonId) {
+    try {
+      const raw = localStorage.getItem(`${getLocalPrefix(salonId)}${collection}_${id}`);
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  },
+
+  getAllLocal(collection, salonId = activeSalonId) {
+    const list = [];
+    const keyPrefix = `${getLocalPrefix(salonId)}${collection}_`;
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith(keyPrefix)) {
+          const id = key.replace(keyPrefix, '');
+          try {
+            const item = JSON.parse(localStorage.getItem(key));
+            list.push({ id, ...item });
+          } catch {
+            // ignore corrupted item
+          }
+        }
+      }
+    } catch {
+      // ignore
+    }
+    return list;
+  },
+
   // Guardar documento dentro del salón activo
   async set(collection, id, data, salonId = activeSalonId) {
     const prefix = getLocalPrefix(salonId);
-    const serialized = JSON.stringify(data);
-    localStorage.setItem(`${prefix}${collection}_${id}`, serialized);
+    try {
+      localStorage.setItem(`${prefix}${collection}_${id}`, JSON.stringify(data));
+    } catch (e) {
+      console.warn('LocalStorage lleno (los datos igual se guardan en Firebase):', e);
+    }
     window.dispatchEvent(new CustomEvent('datastore-change', { detail: { salonId, collection, id, data } }));
 
-    if (isFirebaseLive && db) {
+    if (isFirebaseLive && db && firestoreMod) {
       try {
-        const { doc, setDoc } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
-        await setDoc(doc(db, ARAPY_CONFIG.tenantsCollection, salonId, collection, id), data, { merge: true });
+        await firestoreMod.setDoc(
+          firestoreMod.doc(db, ARAPY_CONFIG.tenantsCollection, salonId, collection, id),
+          data,
+          { merge: true }
+        );
       } catch (err) {
         console.error(`Error guardando en Firestore (${salonId}/${collection}/${id}):`, err);
       }
@@ -241,61 +341,68 @@ export const DataStore = {
     return data;
   },
 
-  // Obtener documento del salón activo (Prioriza Firestore para no perder datos tras actualizaciones)
+  // Obtener documento del salón activo (Prioriza Firestore)
   async get(collection, id, salonId = activeSalonId) {
     const prefix = getLocalPrefix(salonId);
-    if (isFirebaseLive && db) {
+    if (isFirebaseLive && db && firestoreMod) {
       try {
-        const { doc, getDoc } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
-        const snap = await getDoc(doc(db, ARAPY_CONFIG.tenantsCollection, salonId, collection, id));
+        const snap = await firestoreMod.getDoc(
+          firestoreMod.doc(db, ARAPY_CONFIG.tenantsCollection, salonId, collection, id)
+        );
         if (snap.exists()) {
           const data = snap.data();
-          localStorage.setItem(`${prefix}${collection}_${id}`, JSON.stringify(data));
+          try {
+            localStorage.setItem(`${prefix}${collection}_${id}`, JSON.stringify(data));
+          } catch { /* ignore quota */ }
           return data;
         }
       } catch (err) {
         console.warn('Error leyendo Firestore, usando caché local:', err);
       }
     }
-
-    const local = localStorage.getItem(`${prefix}${collection}_${id}`);
-    return local ? JSON.parse(local) : null;
+    return this.getLocal(collection, id, salonId);
   },
 
   // Obtener lista completa de una colección del salón activo
   async getAll(collection, salonId = activeSalonId) {
     const prefix = getLocalPrefix(salonId);
-    if (isFirebaseLive && db) {
+    if (isFirebaseLive && db && firestoreMod) {
       try {
-        const { collection: colRef, getDocs } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
-        const snap = await getDocs(colRef(db, ARAPY_CONFIG.tenantsCollection, salonId, collection));
+        const snap = await firestoreMod.getDocs(
+          firestoreMod.collection(db, ARAPY_CONFIG.tenantsCollection, salonId, collection)
+        );
         const list = [];
+        const remoteIds = new Set();
         snap.forEach((d) => {
           const item = { id: d.id, ...d.data() };
           list.push(item);
-          localStorage.setItem(`${prefix}${collection}_${d.id}`, JSON.stringify(item));
+          remoteIds.add(d.id);
+          try {
+            localStorage.setItem(`${prefix}${collection}_${d.id}`, JSON.stringify(item));
+          } catch { /* ignore quota */ }
         });
-        return list;
+
+        // Limpiar ítems locales que fueron borrados en Firestore
+        const keyPrefix = `${prefix}${collection}_`;
+        const keysToRemove = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (k && k.startsWith(keyPrefix)) {
+            const localId = k.replace(keyPrefix, '');
+            if (!remoteIds.has(localId)) keysToRemove.push(k);
+          }
+        }
+        if (snap.size > 0) {
+          keysToRemove.forEach((k) => localStorage.removeItem(k));
+        }
+
+        if (list.length > 0) return list;
       } catch (err) {
         console.warn('Error leyendo colección de Firestore, usando caché local:', err);
       }
     }
 
-    const list = [];
-    const keyPrefix = `${prefix}${collection}_`;
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key && key.startsWith(keyPrefix)) {
-        const id = key.replace(keyPrefix, '');
-        try {
-          const item = JSON.parse(localStorage.getItem(key));
-          list.push({ id, ...item });
-        } catch {
-          // ignore corrupted item
-        }
-      }
-    }
-    return list;
+    return this.getAllLocal(collection, salonId);
   },
 
   // Borrar documento del salón activo
@@ -304,10 +411,11 @@ export const DataStore = {
     localStorage.removeItem(`${prefix}${collection}_${id}`);
     window.dispatchEvent(new CustomEvent('datastore-change', { detail: { salonId, collection, id, deleted: true } }));
 
-    if (isFirebaseLive && db) {
+    if (isFirebaseLive && db && firestoreMod) {
       try {
-        const { doc, deleteDoc } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
-        await deleteDoc(doc(db, ARAPY_CONFIG.tenantsCollection, salonId, collection, id));
+        await firestoreMod.deleteDoc(
+          firestoreMod.doc(db, ARAPY_CONFIG.tenantsCollection, salonId, collection, id)
+        );
       } catch (err) {
         console.error('Error eliminando en Firestore:', err);
       }
@@ -319,18 +427,18 @@ export const DataStore = {
     return this.remove(collection, id, salonId);
   },
 
-  // Escucha en tiempo real (Suscripción por salón)
   subscribe(collection, callback, salonId = activeSalonId) {
     let unsubscribeFirestore = null;
 
-    if (isFirebaseLive && db) {
-      import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js').then(({ collection: colRef, onSnapshot }) => {
-        unsubscribeFirestore = onSnapshot(colRef(db, ARAPY_CONFIG.tenantsCollection, salonId, collection), (snap) => {
+    if (isFirebaseLive && db && firestoreMod) {
+      unsubscribeFirestore = firestoreMod.onSnapshot(
+        firestoreMod.collection(db, ARAPY_CONFIG.tenantsCollection, salonId, collection),
+        (snap) => {
           const list = [];
           snap.forEach((d) => list.push({ id: d.id, ...d.data() }));
           callback(list);
-        });
-      });
+        }
+      );
     }
 
     const handleLocal = () => {
@@ -350,7 +458,7 @@ export const DataStore = {
 };
 
 // ============================================================================
-// GESTOR DE SALONES & PUENTE CONSOLA MASTER ARAPY SOLUCIONES
+// GESTOR DE SALONES & PUENTE CONSOLA MASTER ARAPY (tiendas_registradas)
 // ============================================================================
 const TENANT_COLLECTIONS = [
   'salon',
@@ -366,101 +474,98 @@ const TENANT_COLLECTIONS = [
 ];
 
 export const TenantManager = {
-  // Sincroniza la ficha raíz del salón (arapy_salones/{salonId}) que lee la Consola Master
+  // Sincroniza la ficha del salón en tiendas_registradas/{salonId} para Consola Master
   async syncTenantMetadata(salonConfig, salonId = activeSalonId) {
+    if (!salonId || salonId === ARAPY_CONFIG.defaultSalonId) return null;
     const nowIso = new Date().toISOString();
     const reg = getLocalRegistry();
     const existing = reg[salonId] || {};
 
-    const meta = {
-      salonId,
+    const record = {
       slug: salonId,
+      nombre: salonConfig?.name || existing.nombre || salonId,
+      name: salonConfig?.name || existing.name || salonId,
+      rubro: ARAPY_CONFIG.rubro,
       appId: ARAPY_CONFIG.appId,
-      appName: ARAPY_CONFIG.appName,
-      name: salonConfig?.name || 'Nuevo Salón',
-      phone: salonConfig?.phone || '',
-      address: salonConfig?.address || '',
+      telefono: salonConfig?.phone || existing.telefono || '',
+      phone: salonConfig?.phone || existing.phone || '',
+      email: salonConfig?.email || existing.email || '',
       publicUrl: getSalonPublicUrl(salonId),
-      status: existing.status || 'active',       // 'active' | 'trial' | 'suspended'
-      plan: existing.plan || 'estandar',         // Gestionable desde Consola Master
-      expiresAt: existing.expiresAt || null,     // ISO string opcional (ej. '2026-12-31T23:59:59Z')
       createdAt: existing.createdAt || nowIso,
       updatedAt: nowIso
     };
 
-    reg[salonId] = meta;
+    reg[salonId] = {
+      ...record,
+      suscripcion: existing.suscripcion || crearSuscripcionInicial(ARAPY_CONFIG.defaultTrialDays)
+    };
     saveLocalRegistry(reg);
 
-    if (isFirebaseLive && db) {
+    if (isFirebaseLive && db && firestoreMod) {
       try {
-        const { doc, setDoc } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
-        // merge: true preserva campos que haya escrito la Consola Master (status, expiresAt, plan, notes)
-        await setDoc(
-          doc(db, ARAPY_CONFIG.tenantsCollection, salonId),
-          {
-            salonId: meta.salonId,
-            slug: meta.slug,
-            appId: meta.appId,
-            appName: meta.appName,
-            name: meta.name,
-            phone: meta.phone,
-            address: meta.address,
-            publicUrl: meta.publicUrl,
-            updatedAt: nowIso
-          },
-          { merge: true }
-        );
-      } catch (err) {
-        console.warn('No se pudo sincronizar metadata del salón con Consola Master:', err);
-      }
-    }
-    return meta;
-  },
-
-  // Consulta el estado de suscripción en Firestore (controlado por Consola Master Arapy)
-  async checkSubscription(salonId = activeSalonId) {
-    const reg = getLocalRegistry();
-    let meta = reg[salonId] || { status: 'active', plan: 'estandar', expiresAt: null };
-
-    if (isFirebaseLive && db) {
-      try {
-        const { doc, getDoc } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
-        const snap = await getDoc(doc(db, ARAPY_CONFIG.tenantsCollection, salonId));
-        if (snap.exists()) {
-          meta = { ...meta, ...snap.data() };
-          reg[salonId] = meta;
-          saveLocalRegistry(reg);
+        const ref = firestoreMod.doc(db, ARAPY_CONFIG.registryCollection, salonId);
+        const snap = await firestoreMod.getDoc(ref);
+        if (!snap.exists()) {
+          // Registro inicial nuevo: incluye trial de 30 días compatible con ArapyMasterConsole
+          await firestoreMod.setDoc(ref, {
+            ...record,
+            suscripcion: crearSuscripcionInicial(ARAPY_CONFIG.defaultTrialDays)
+          });
+        } else {
+          // Actualización comercial: NUNCA sobreescribe suscripcion ni createdAt gestionados por Consola Master
+          await firestoreMod.setDoc(
+            ref,
+            {
+              nombre: record.nombre,
+              name: record.name,
+              rubro: record.rubro,
+              appId: record.appId,
+              telefono: record.telefono,
+              phone: record.phone,
+              publicUrl: record.publicUrl,
+              updatedAt: nowIso
+            },
+            { merge: true }
+          );
         }
       } catch (err) {
-        console.warn('Error verificando suscripción en Firestore:', err);
+        console.warn('Aviso sincronizando con tiendas_registradas (Consola Master):', err);
       }
     }
-
-    const status = (meta.status || 'active').toLowerCase();
-    const isSuspended = status === 'suspended' || status === 'paused' || status === 'blocked' || status === 'inactivo';
-    let isExpired = false;
-
-    if (meta.expiresAt) {
-      const expTime = new Date(meta.expiresAt).getTime();
-      if (!Number.isNaN(expTime) && Date.now() > expTime) {
-        isExpired = true;
-      }
-    }
-
-    return {
-      allowed: !isSuspended && !isExpired,
-      status: isSuspended ? 'suspended' : isExpired ? 'expired' : status,
-      plan: meta.plan || 'estandar',
-      expiresAt: meta.expiresAt || null,
-      reason: isSuspended
-        ? 'Esta tienda se encuentra temporalmente pausada desde la Consola Master de Arapy Soluciones.'
-        : isExpired
-          ? 'La suscripción de este salón ha vencido. Comunicate con Arapy Soluciones para renovarla.'
-          : ''
-    };
+    return reg[salonId];
   },
 
-  // Verifica si un nombre de link (slug) está libre para usar
+  // Evalúa la suscripción en tiempo real desde tiendas_registradas/{salonId}
+  async checkSubscription(salonId = activeSalonId) {
+    if (!salonId || salonId === ARAPY_CONFIG.defaultSalonId) {
+      return { allowed: true, status: 'trial', plan: 'demo', diasRestantes: 30, reason: '' };
+    }
+
+    const reg = getLocalRegistry();
+    let suscripcion = reg[salonId]?.suscripcion || null;
+
+    if (isFirebaseLive && db && firestoreMod) {
+      try {
+        const snap = await firestoreMod.getDoc(
+          firestoreMod.doc(db, ARAPY_CONFIG.registryCollection, salonId)
+        );
+        if (snap.exists()) {
+          const data = snap.data();
+          if (data && data.suscripcion) {
+            suscripcion = data.suscripcion;
+            reg[salonId] = { ...(reg[salonId] || {}), ...data };
+            saveLocalRegistry(reg);
+          }
+        }
+      } catch (err) {
+        console.warn('Error consultando suscripción en tiendas_registradas:', err);
+      }
+    }
+
+    return evaluarSuscripcion(suscripcion);
+  },
+
+  // Verifica si el nombre del link (slug) está libre en tiendas_registradas
   async isSlugAvailable(candidateSlug) {
     const clean = normalizeSlug(candidateSlug);
     if (!clean || clean.length < 3) {
@@ -470,12 +575,13 @@ export const TenantManager = {
       return { ok: true, same: true };
     }
 
-    if (isFirebaseLive && db) {
+    if (isFirebaseLive && db && firestoreMod) {
       try {
-        const { doc, getDoc } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
-        const snap = await getDoc(doc(db, ARAPY_CONFIG.tenantsCollection, clean));
+        const snap = await firestoreMod.getDoc(
+          firestoreMod.doc(db, ARAPY_CONFIG.registryCollection, clean)
+        );
         if (snap.exists()) {
-          return { ok: false, reason: `El link "${clean}" ya está en uso por otro salón.` };
+          return { ok: false, reason: `El link "${clean}" ya está registrado por otro comercio en Arapy.` };
         }
       } catch (err) {
         console.warn('No se pudo validar disponibilidad en Firestore:', err);
@@ -503,27 +609,25 @@ export const TenantManager = {
 
     const oldSalonId = activeSalonId;
 
-    // 1. Copiar todas las colecciones al nuevo salonId
-    for (const col of TENANT_COLLECTIONS) {
-      if (col === 'salon') {
-        const cfg = currentSalonConfig || (await DataStore.get('salon', 'config', oldSalonId));
-        if (cfg) {
-          await DataStore.set('salon', 'config', { ...cfg, slug: clean, isDemo: false }, clean);
-        }
-      } else {
-        const items = await DataStore.getAll(col, oldSalonId);
-        for (const item of items) {
-          if (item && item.id) {
-            await DataStore.set(col, item.id, item, clean);
+    await Promise.all(
+      TENANT_COLLECTIONS.map(async (col) => {
+        if (col === 'salon') {
+          const cfg = currentSalonConfig || (await DataStore.get('salon', 'config', oldSalonId));
+          if (cfg) {
+            await DataStore.set('salon', 'config', { ...cfg, slug: clean, isDemo: false }, clean);
           }
+        } else {
+          const items = await DataStore.getAll(col, oldSalonId);
+          await Promise.all(
+            items
+              .filter((item) => item && item.id)
+              .map((item) => DataStore.set(col, item.id, item, clean))
+          );
         }
-      }
-    }
+      })
+    );
 
-    // 2. Activar nuevo slug y actualizar la barra de direcciones del navegador
     setActiveSalonId(clean, true);
-
-    // 3. Registrar metadata en Consola Master bajo el nuevo slug
     await this.syncTenantMetadata({ ...(currentSalonConfig || {}), slug: clean }, clean);
 
     return { ok: true, slug: clean, url: getSalonPublicUrl(clean) };

@@ -177,11 +177,30 @@ const AppState = {
   // Agenda del Salón
   agendaSelectedDate: '', // 'YYYY-MM-DD'
   isManualApptOpen: false,
+  manualApptDefaultSlot: '',
+  editingApptId: null,
   isBlockModalOpen: false,
   blockedSlots: [],
   reschedulingApptId: null,
   rescheduleDate: '',
   rescheduleSlot: '',
+
+  // Editor y Optimizador de Fotos
+  photoEditor: {
+    isOpen: false,
+    target: '', // 'splash' | 'banner' | 'service' | 'photobank'
+    rawDataUrl: '',
+    title: '',
+    aspect: 'original', // 'original' | '1:1' | '4:5' | '16:9'
+    maxWidth: 900,
+    quality: 0.82,
+    zoom: 1,
+    brightness: 100,
+    contrast: 100,
+    previewDataUrl: '',
+    sizeKB: 0,
+    dims: ''
+  },
 
   // Estado temporal de edición de servicio en el Panel
   editingServiceId: null,
@@ -320,21 +339,29 @@ function getUpcomingDays(count = 10) {
 }
 
 const SALON_SLOTS = [
-  '09:00', '10:00', '11:00', '12:00', '13:00', '14:00',
-  '15:00', '16:00', '17:00', '18:00', '19:00', '20:00'
+  '08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00',
+  '15:00', '16:00', '17:00', '18:00', '19:00', '20:00', '21:00'
 ];
 
-function isSlotOccupied(dateStr, slot) {
-  if (!dateStr || !slot) return false;
-  const isApptTaken = (AppState.appointments || []).some(
-    (a) => a.date === dateStr && a.slot === slot && a.status !== 'cancelled'
+function getSlotOccupant(dateStr, slot, excludeApptId = null) {
+  if (!dateStr || !slot) return null;
+  const appts = (AppState.appointments || []).filter(
+    (a) => a.date === dateStr && a.slot === slot && a.status !== 'cancelled' && a.id !== excludeApptId
   );
-  if (isApptTaken) return true;
-
-  const isBlocked = (AppState.blockedSlots || []).some(
+  if (appts.length > 0) {
+    return { type: 'appt', count: appts.length, appt: appts[0], appts };
+  }
+  const blocked = (AppState.blockedSlots || []).find(
     (b) => b.date === dateStr && (b.allDay || b.slot === slot)
   );
-  return isBlocked;
+  if (blocked) {
+    return { type: 'blocked', reason: blocked.reason || 'Bloqueado' };
+  }
+  return null;
+}
+
+function isSlotOccupied(dateStr, slot, excludeApptId = null) {
+  return getSlotOccupant(dateStr, slot, excludeApptId) !== null;
 }
 
 // ----------------------------------------------------------------------------
@@ -1713,6 +1740,47 @@ function renderPanelAgenda() {
           </button>
         </div>
 
+        <!-- Grilla Visual de Disponibilidad del Día (Muestra OCUPADO si ya hay turno) -->
+        <div class="form-card" style="padding: 12px 14px;">
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+            <strong style="font-size: 12.5px; color: var(--text-main);">🗓️ Disponibilidad del Día</strong>
+            <span style="font-size: 10.5px; color: var(--text-muted);">
+              <span style="color: #dc2626; font-weight: 700;">● Ocupado</span> •
+              <span style="color: #16a34a; font-weight: 700;">● Libre (tocar para agendar)</span>
+            </span>
+          </div>
+          <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(74px, 1fr)); gap: 6px;">
+            ${SALON_SLOTS.map((slot) => {
+              const occ = getSlotOccupant(selectedDate, slot);
+              if (occ && occ.type === 'appt') {
+                const badgeText = occ.count > 1 ? `Ocupado (${occ.count})` : 'Ocupado';
+                const shortName = (occ.appt?.clientName || '').split(' ')[0].slice(0, 10);
+                return `
+                  <button type="button" onclick="window.handleOpenManualForSlot('${slot}')" title="Ocupado por ${occ.appt?.clientName || 'clienta'} — tocá para cargar sobreturno" style="padding: 6px 4px; border-radius: 10px; border: 1.5px solid #fca5a5; background: #fef2f2; color: #b91c1c; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 1px;">
+                    <span style="font-size: 11.5px; font-weight: 800;">${slot}</span>
+                    <span style="font-size: 9px; font-weight: 800; text-transform: uppercase;">${badgeText}</span>
+                    ${shortName ? `<span style="font-size: 8.5px; opacity: 0.85; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 66px;">${shortName}</span>` : ''}
+                  </button>
+                `;
+              }
+              if (occ && occ.type === 'blocked') {
+                return `
+                  <div title="${occ.reason}" style="padding: 6px 4px; border-radius: 10px; border: 1.5px dashed #cbd5e1; background: #f1f5f9; color: #64748b; display: flex; flex-direction: column; align-items: center; gap: 1px;">
+                    <span style="font-size: 11.5px; font-weight: 800;">${slot}</span>
+                    <span style="font-size: 9px; font-weight: 700;">Bloqueado</span>
+                  </div>
+                `;
+              }
+              return `
+                <button type="button" onclick="window.handleOpenManualForSlot('${slot}')" style="padding: 6px 4px; border-radius: 10px; border: 1.5px solid #bbf7d0; background: #f0fdf4; color: #15803d; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 1px;">
+                  <span style="font-size: 11.5px; font-weight: 800;">${slot}</span>
+                  <span style="font-size: 9px; font-weight: 700;">Libre</span>
+                </button>
+              `;
+            }).join('')}
+          </div>
+        </div>
+
         <!-- Formulario Modal: + Turno Manual -->
         ${AppState.isManualApptOpen ? renderManualApptForm() : ''}
 
@@ -1730,7 +1798,7 @@ function renderPanelAgenda() {
               </div>
               <h4 style="font-size: 15px; font-weight: 700; color: var(--text-main);">Sin turnos para este día</h4>
               <p style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">
-                Cargá un turno que te llegó por teléfono con el botón <strong>"+ Turno Manual"</strong> o esperá reservas online.
+                Tocá cualquier horario <strong>Libre</strong> arriba o usá <strong>"+ Turno Manual"</strong> para cargar turnos sin límite.
               </p>
             </div>
           `
@@ -1785,8 +1853,13 @@ function renderPanelAgenda() {
                   <div class="agenda-service-detail">
                     <span>${appt.serviceName}</span>
                     <span>•</span>
-                    <strong style="color: var(--text-main);">${Number(appt.servicePrice || 0).toLocaleString('es-AR')}</strong>
+                    <strong style="color: var(--text-main);">$${Number(appt.servicePrice || 0).toLocaleString('es-AR')}</strong>
                   </div>
+                  ${appt.notes ? `
+                    <div style="font-size: 11px; color: var(--text-muted); margin-top: 3px; font-style: italic;">
+                      📝 ${appt.notes}
+                    </div>
+                  ` : ''}
                   ${appt.addons && appt.addons.length > 0 ? `
                     <div style="font-size: 11px; color: var(--accent-dark); font-weight: 600; margin-top: 2px;">
                       ✨ Adicionales: ${appt.addons.map((a) => a.name).join(', ')}
@@ -1835,6 +1908,9 @@ function renderPanelAgenda() {
                   <button type="button" class="btn-agenda-action wa" onclick="window.sendClientWhatsAppReminder('${appt.id}')">
                     💬 WhatsApp
                   </button>
+                  <button type="button" class="btn-agenda-action" style="background: rgba(197,155,39,0.14); color: var(--text-main);" onclick="window.handleOpenEditAppt('${appt.id}')">
+                    ✏️ Editar
+                  </button>
                   ${
                     appt.status !== 'completed' && appt.status !== 'cancelled'
                       ? `
@@ -1847,13 +1923,18 @@ function renderPanelAgenda() {
                   ${
                     appt.status !== 'cancelled'
                       ? `
-                    <button type="button" class="btn-agenda-action danger" onclick="window.handleCancelAppt('${appt.id}', '${appt.clientName}')">
+                    <button type="button" class="btn-agenda-action danger" onclick="window.handleCancelAppt('${appt.id}', '${(appt.clientName || '').replace(/'/g, '')}')">
                       ✕ Cancelar
                     </button>
                   `
                       : ''
                   }
+                  <button type="button" class="btn-agenda-action danger" style="background: #fee2e2; color: #b91c1c;" onclick="window.handleDeleteApptPermanent('${appt.id}', '${(appt.clientName || '').replace(/'/g, '')}')">
+                    🗑️ Borrar
+                  </button>
                 </div>
+
+                ${AppState.editingApptId === appt.id ? renderEditApptInlineForm(appt) : ''}
 
                 ${AppState.reschedulingApptId === appt.id ? `
                   <div class="reschedule-modal-card" style="margin-top: 10px; padding: 12px; background: var(--accent-soft); border: 1.5px solid var(--accent-primary); border-radius: 14px;">
@@ -1868,13 +1949,11 @@ function renderPanelAgenda() {
                     <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 10px;">
                       ${SALON_SLOTS.map((slot) => {
                         const targetDate = AppState.rescheduleDate || appt.date;
-                        const isOccupied = isSlotOccupied(targetDate, slot);
-                        const isOriginalSlot = targetDate === appt.date && slot === appt.slot;
+                        const isOccupied = isSlotOccupied(targetDate, slot, appt.id);
                         const isSelected = AppState.rescheduleSlot === slot;
-                        const disabled = isOccupied && !isOriginalSlot;
                         return `
-                          <button type="button" style="padding: 6px 2px; font-size: 11px; font-weight: 700; border-radius: 6px; border: 1.5px solid ${isSelected ? 'var(--accent-primary)' : 'rgba(0,0,0,0.08)'}; background: ${isSelected ? 'var(--accent-primary)' : disabled ? 'rgba(0,0,0,0.04)' : 'var(--card-bg)'}; color: ${isSelected ? '#fff' : disabled ? 'var(--text-muted)' : 'var(--text-main)'}; cursor: ${disabled ? 'not-allowed' : 'pointer'};" ${disabled ? 'disabled' : ''} onclick="window.handleRescheduleSlotSelect('${slot}')">
-                            ${slot}
+                          <button type="button" style="padding: 6px 2px; font-size: 10.5px; font-weight: 700; border-radius: 6px; border: 1.5px solid ${isSelected ? 'var(--accent-primary)' : isOccupied ? '#fca5a5' : 'rgba(0,0,0,0.08)'}; background: ${isSelected ? 'var(--accent-primary)' : isOccupied ? '#fef2f2' : 'var(--card-bg)'}; color: ${isSelected ? '#fff' : isOccupied ? '#b91c1c' : 'var(--text-main)'}; cursor: ${isOccupied ? 'not-allowed' : 'pointer'};" ${isOccupied ? 'disabled' : ''} onclick="window.handleRescheduleSlotSelect('${slot}')">
+                            ${slot}${isOccupied ? '<br><span style="font-size:8px;">Ocupado</span>' : ''}
                           </button>
                         `;
                       }).join('')}
@@ -1900,17 +1979,93 @@ function renderPanelAgenda() {
   `;
 }
 
+function renderEditApptInlineForm(appt) {
+  const services = AppState.services || [];
+  return `
+    <form class="form-card" style="margin-top: 10px; padding: 12px; border: 1.5px solid var(--gold-primary); background: rgba(197, 155, 39, 0.06);" onsubmit="window.handleSaveEditedAppt(event, '${appt.id}')">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+        <strong style="font-size: 13px; color: var(--text-main);">✏️ Editar Turno</strong>
+        <button type="button" style="background: none; border: none; font-size: 16px; cursor: pointer; color: var(--text-muted);" onclick="window.handleCloseEditAppt()">✕</button>
+      </div>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+        <div class="form-group-clean">
+          <label>Clienta</label>
+          <input type="text" id="edit-appt-name-${appt.id}" value="${appt.clientName || ''}" required />
+        </div>
+        <div class="form-group-clean">
+          <label>Teléfono</label>
+          <input type="tel" id="edit-appt-phone-${appt.id}" value="${appt.clientPhone || ''}" />
+        </div>
+      </div>
+      <div class="form-group-clean">
+        <label>Servicio</label>
+        <select id="edit-appt-service-${appt.id}" onchange="window.handleEditApptServiceChange('${appt.id}', this.value)">
+          ${services.map((s) => `<option value="${s.id}" ${s.id === appt.serviceId ? 'selected' : ''}>${s.name} — $${Number(s.price).toLocaleString('es-AR')}</option>`).join('')}
+          ${!services.some((s) => s.id === appt.serviceId) ? `<option value="${appt.serviceId || ''}" selected>${appt.serviceName || 'Servicio personalizado'}</option>` : ''}
+        </select>
+      </div>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+        <div class="form-group-clean">
+          <label>Fecha</label>
+          <input type="date" id="edit-appt-date-${appt.id}" value="${appt.date || ''}" required />
+        </div>
+        <div class="form-group-clean">
+          <label>Horario</label>
+          <input type="time" id="edit-appt-slot-${appt.id}" value="${appt.slot || '10:00'}" required />
+        </div>
+      </div>
+      <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px;">
+        <div class="form-group-clean">
+          <label>Precio ($)</label>
+          <input type="number" id="edit-appt-price-${appt.id}" value="${Number(appt.servicePrice || 0)}" min="0" />
+        </div>
+        <div class="form-group-clean">
+          <label>Seña ($)</label>
+          <input type="number" id="edit-appt-deposit-${appt.id}" value="${Number(appt.depositAmount || 0)}" min="0" />
+        </div>
+        <div class="form-group-clean">
+          <label>Estado</label>
+          <select id="edit-appt-status-${appt.id}">
+            <option value="pending" ${appt.status === 'pending' ? 'selected' : ''}>Pendiente</option>
+            <option value="confirmed" ${appt.status === 'confirmed' ? 'selected' : ''}>Confirmado</option>
+            <option value="completed" ${appt.status === 'completed' ? 'selected' : ''}>Cumplido</option>
+            <option value="cancelled" ${appt.status === 'cancelled' ? 'selected' : ''}>Cancelado</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group-clean">
+        <label>Notas / Observaciones</label>
+        <input type="text" id="edit-appt-notes-${appt.id}" value="${appt.notes || ''}" placeholder="Ej: Trae diseño propio, alergia, etc." />
+      </div>
+      <div style="display: flex; align-items: center; gap: 8px; margin: 6px 0 10px;">
+        <input type="checkbox" id="edit-appt-overbook-${appt.id}" style="width: 16px; height: 16px;" />
+        <label for="edit-appt-overbook-${appt.id}" style="font-size: 11.5px; font-weight: 600; cursor: pointer;">Permitir sobreturno si el horario ya está ocupado</label>
+      </div>
+      <div style="display: flex; gap: 8px;">
+        <button type="submit" class="btn-primary-action btn-gold-shimmer" style="flex: 1; padding: 9px; font-size: 12px;">
+          💾 Guardar Cambios
+        </button>
+        <button type="button" class="btn-secondary-action" style="padding: 9px 12px; font-size: 12px;" onclick="window.handleCloseEditAppt()">
+          Cancelar
+        </button>
+      </div>
+    </form>
+  `;
+}
+
 function renderManualApptForm() {
   const services = AppState.services || [];
   const selectedDate = AppState.agendaSelectedDate;
+  const defaultSlot = AppState.manualApptDefaultSlot || '10:00';
+  const defaultOccupied = isSlotOccupied(selectedDate, defaultSlot);
 
   return `
     <form class="form-card" style="border: 1.5px solid var(--accent-primary);" onsubmit="window.handleSaveManualAppt(event)">
       <div style="display: flex; align-items: center; justify-content: space-between;">
-        <h3>➕ Cargar Turno Manual</h3>
+        <h3>➕ Cargar Turno Manual (Sin Límite)</h3>
         <button type="button" style="background: none; border: none; font-size: 18px; cursor: pointer;" onclick="window.handleToggleManualApptModal(false)">×</button>
       </div>
-      <p class="form-card-sub">Para clientas que te reservaron por llamada o en el local:</p>
+      <p class="form-card-sub">Cargá todos los turnos que necesites en cualquier horario:</p>
 
       <div class="form-group-clean">
         <label>Nombre de la Clienta</label>
@@ -1918,8 +2073,8 @@ function renderManualApptForm() {
       </div>
 
       <div class="form-group-clean">
-        <label>Teléfono / WhatsApp</label>
-        <input type="tel" id="manual-client-phone" placeholder="Ej: 11 9876 5432" required />
+        <label>Teléfono / WhatsApp (opcional)</label>
+        <input type="tel" id="manual-client-phone" placeholder="Ej: 3751 123456" />
       </div>
 
       <div class="form-group-clean">
@@ -1927,7 +2082,7 @@ function renderManualApptForm() {
         <select id="manual-service-id" required>
           ${
             services.length === 0
-              ? '<option value="">(No hay servicios creados aún)</option>'
+              ? '<option value="manual_custom">Servicio General</option>'
               : services.map((s) => `<option value="${s.id}">${s.name} - $${Number(s.price).toLocaleString('es-AR')}</option>`).join('')
           }
         </select>
@@ -1939,16 +2094,26 @@ function renderManualApptForm() {
           <input type="date" id="manual-appt-date" value="${selectedDate}" required />
         </div>
         <div class="form-group-clean">
-          <label>Horario</label>
-          <select id="manual-appt-slot" required>
-            ${SALON_SLOTS.map((s) => `<option value="${s}">${s} hs</option>`).join('')}
-          </select>
+          <label>Horario (cualquier hora)</label>
+          <input type="time" id="manual-appt-slot" value="${defaultSlot}" required />
         </div>
       </div>
 
-      <div style="display: flex; align-items: center; gap: 8px; margin: 8px 0 14px;">
+      <div class="form-group-clean">
+        <label>Notas (opcional)</label>
+        <input type="text" id="manual-appt-notes" placeholder="Ej: Retiro + Kapping" />
+      </div>
+
+      <div style="display: flex; align-items: center; gap: 8px; margin: 6px 0;">
         <input type="checkbox" id="manual-deposit-paid" style="width: 18px; height: 18px;" />
-        <label for="manual-deposit-paid" style="font-size: 13px; font-weight: 600; cursor: pointer;">Seña del turno ya recibida / pagada</label>
+        <label for="manual-deposit-paid" style="font-size: 12.5px; font-weight: 600; cursor: pointer;">Seña del turno ya recibida / pagada</label>
+      </div>
+
+      <div style="display: flex; align-items: center; gap: 8px; margin: 6px 0 14px;">
+        <input type="checkbox" id="manual-allow-overbook" style="width: 18px; height: 18px;" ${defaultOccupied ? 'checked' : ''} />
+        <label for="manual-allow-overbook" style="font-size: 12.5px; font-weight: 600; cursor: pointer; color: #b45309;">
+          Permitir sobreturno / doble silla (cargar aunque el horario figure Ocupado)
+        </label>
       </div>
 
       <div style="display: flex; gap: 8px;">
@@ -2047,6 +2212,104 @@ window.selectAgendaDate = (dateStr) => {
 
 window.handleToggleManualApptModal = (isOpen) => {
   AppState.isManualApptOpen = isOpen;
+  if (!isOpen) AppState.manualApptDefaultSlot = '';
+  renderApp();
+};
+
+window.handleOpenManualForSlot = (slot) => {
+  AppState.manualApptDefaultSlot = slot;
+  AppState.isManualApptOpen = true;
+  AppState.isBlockModalOpen = false;
+  AppState.editingApptId = null;
+  renderApp();
+  setTimeout(() => {
+    document.getElementById('manual-client-name')?.focus();
+  }, 60);
+};
+
+window.handleOpenEditAppt = (apptId) => {
+  AppState.editingApptId = AppState.editingApptId === apptId ? null : apptId;
+  AppState.reschedulingApptId = null;
+  renderApp();
+};
+
+window.handleCloseEditAppt = () => {
+  AppState.editingApptId = null;
+  renderApp();
+};
+
+window.handleEditApptServiceChange = (apptId, serviceId) => {
+  const srv = (AppState.services || []).find((s) => s.id === serviceId);
+  if (!srv) return;
+  const priceEl = document.getElementById(`edit-appt-price-${apptId}`);
+  const depEl = document.getElementById(`edit-appt-deposit-${apptId}`);
+  const depositPercent = AppState.salon.depositPercent !== undefined ? AppState.salon.depositPercent : 50;
+  if (priceEl) priceEl.value = Number(srv.price) || 0;
+  if (depEl) depEl.value = srv.deposit || Math.round(((Number(srv.price) || 0) * depositPercent) / 100);
+};
+
+window.handleSaveEditedAppt = async (e, apptId) => {
+  e.preventDefault();
+  const idx = (AppState.appointments || []).findIndex((a) => a.id === apptId);
+  if (idx < 0) return;
+
+  const existing = AppState.appointments[idx];
+  const clientName = document.getElementById(`edit-appt-name-${apptId}`)?.value.trim();
+  const clientPhone = document.getElementById(`edit-appt-phone-${apptId}`)?.value.trim() || '';
+  const serviceId = document.getElementById(`edit-appt-service-${apptId}`)?.value || existing.serviceId;
+  const date = document.getElementById(`edit-appt-date-${apptId}`)?.value || existing.date;
+  const slot = document.getElementById(`edit-appt-slot-${apptId}`)?.value || existing.slot;
+  const servicePrice = Number(document.getElementById(`edit-appt-price-${apptId}`)?.value) || 0;
+  const depositAmount = Number(document.getElementById(`edit-appt-deposit-${apptId}`)?.value) || 0;
+  const status = document.getElementById(`edit-appt-status-${apptId}`)?.value || existing.status;
+  const notes = document.getElementById(`edit-appt-notes-${apptId}`)?.value.trim() || '';
+  const allowOverbook = document.getElementById(`edit-appt-overbook-${apptId}`)?.checked || false;
+
+  if (!clientName || !date || !slot) {
+    showToast('⚠️ Completá nombre, fecha y horario del turno');
+    return;
+  }
+
+  if (!allowOverbook && status !== 'cancelled' && isSlotOccupied(date, slot, apptId)) {
+    showToast('⚠️ Ese horario ya está OCUPADO. Elegí otro o tildá "Permitir sobreturno".');
+    return;
+  }
+
+  const srv = (AppState.services || []).find((s) => s.id === serviceId);
+  const updated = {
+    ...existing,
+    clientName,
+    clientPhone,
+    serviceId,
+    serviceName: srv ? srv.name : existing.serviceName,
+    serviceDuration: srv ? Number(srv.duration) || existing.serviceDuration || 60 : existing.serviceDuration || 60,
+    servicePrice,
+    depositAmount,
+    date,
+    slot,
+    status,
+    notes,
+    updatedAt: new Date().toISOString()
+  };
+
+  AppState.appointments[idx] = updated;
+  AppState.editingApptId = null;
+  AppState.agendaSelectedDate = date;
+  await DataStore.set('appointments', apptId, updated);
+  showToast(`✅ Turno de ${clientName} actualizado`);
+  renderApp();
+};
+
+window.handleDeleteApptPermanent = async (apptId, clientName) => {
+  const ok = window.confirm(`¿Borrar definitivamente el turno de "${clientName || 'esta clienta'}"?\n\nEl horario quedará LIBRE de inmediato.`);
+  if (!ok) return;
+
+  AppState.appointments = (AppState.appointments || []).filter((a) => a.id !== apptId);
+  if (AppState.editingApptId === apptId) AppState.editingApptId = null;
+  if (AppState.reschedulingApptId === apptId) AppState.reschedulingApptId = null;
+
+  await DataStore.remove('appointments', apptId);
+  showToast(`🗑️ Turno de ${clientName || 'clienta'} borrado definitivamente`);
   renderApp();
 };
 
@@ -2058,42 +2321,45 @@ window.handleToggleBlockModal = (isOpen) => {
 window.handleSaveManualAppt = async (e) => {
   e.preventDefault();
   const name = document.getElementById('manual-client-name')?.value.trim();
-  const phone = document.getElementById('manual-client-phone')?.value.trim();
+  const phone = document.getElementById('manual-client-phone')?.value.trim() || '';
   const serviceId = document.getElementById('manual-service-id')?.value;
   const date = document.getElementById('manual-appt-date')?.value;
   const slot = document.getElementById('manual-appt-slot')?.value;
+  const notes = document.getElementById('manual-appt-notes')?.value.trim() || '';
   const depositPaid = document.getElementById('manual-deposit-paid')?.checked || false;
+  const allowOverbook = document.getElementById('manual-allow-overbook')?.checked || false;
 
-  if (!name || !phone || !serviceId || !date || !slot) {
-    showToast('⚠️ Por favor completá todos los campos requeridos');
+  if (!name || !date || !slot) {
+    showToast('⚠️ Por favor completá nombre, fecha y horario');
     return;
   }
 
-  // Verificar si el turno ya está ocupado
-  if (isSlotOccupied(date, slot)) {
-    showToast('⚠️ Ese horario ya está ocupado o bloqueado');
+  // Verificar si el horario ya está ocupado (salvo que la dueña habilite sobreturno/doble silla)
+  if (!allowOverbook && isSlotOccupied(date, slot)) {
+    showToast('⚠️ Ese horario figura OCUPADO. Elegí otro o tildá "Permitir sobreturno".');
     return;
   }
 
   const srv = (AppState.services || []).find((s) => s.id === serviceId);
-  const srvName = srv ? srv.name : 'Servicio Manual';
+  const srvName = srv ? srv.name : 'Servicio General';
   const srvPrice = srv ? Number(srv.price) || 0 : 0;
   const srvDuration = srv ? Number(srv.duration) || 60 : 60;
   const depositPercent = AppState.salon.depositPercent || 50;
   const depositAmount = srv ? (srv.deposit || Math.round((srvPrice * depositPercent) / 100)) : 0;
 
-  const apptId = 'appt_' + Date.now();
+  const apptId = 'appt_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
   const newAppt = {
     id: apptId,
     clientId: '',
     clientName: name,
     clientPhone: phone,
-    serviceId: serviceId,
+    serviceId: serviceId || 'manual_custom',
     serviceName: srvName,
     servicePrice: srvPrice,
     serviceDuration: srvDuration,
     date: date,
     slot: slot,
+    notes: notes,
     status: 'confirmed',
     depositAmount: depositAmount,
     depositPaid: depositPaid,
@@ -2101,7 +2367,7 @@ window.handleSaveManualAppt = async (e) => {
   };
 
   // Crear o actualizar ficha de clienta
-  let client = (AppState.clients || []).find((c) => c.phone && c.phone === phone);
+  let client = phone ? (AppState.clients || []).find((c) => c.phone && c.phone === phone) : null;
   if (!client) {
     client = {
       id: 'cli_' + Date.now(),
@@ -2954,19 +3220,11 @@ window.pickServicePhoto = (url) => {
   if (input) input.value = url;
 };
 
-window.handleUploadServicePhoto = async (e) => {
+window.handleUploadServicePhoto = (e) => {
   const file = e.target.files && e.target.files[0];
   if (!file) return;
-  showToast('⏳ Optimizando foto del trabajo...');
-  try {
-    const dataUrl = await compressAndReadImage(file, 800, 0.82);
-    const input = document.getElementById('srv-image-input');
-    if (input) input.value = dataUrl;
-    showToast('📸 ¡Foto cargada para el servicio!');
-  } catch (err) {
-    console.error(err);
-    showToast('⚠️ Error al cargar foto');
-  }
+  openPhotoEditorFromFile(file, 'service', '1:1', 800);
+  e.target.value = '';
 };
 
 // Controladores de Categorías
@@ -3321,46 +3579,303 @@ window.setBannerPreset = (url) => {
   renderApp();
 };
 
-window.handleUploadSplashPhoto = async (e) => {
-  const file = e.target.files && e.target.files[0];
+// ============================================================================
+// EDITOR & OPTIMIZADOR DE FOTOS (TAMAÑO, RECORTE, CALIDAD WEBP, ZOOM Y LUZ)
+// ============================================================================
+function processPhotoEditorCanvas() {
+  const ed = AppState.photoEditor;
+  if (!ed || !ed.rawDataUrl) return Promise.resolve();
+
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const iw = img.naturalWidth || img.width;
+      const ih = img.naturalHeight || img.height;
+
+      // Relación de aspecto elegida
+      let targetRatio = iw / ih;
+      if (ed.aspect === '1:1') targetRatio = 1;
+      else if (ed.aspect === '4:5') targetRatio = 4 / 5;
+      else if (ed.aspect === '16:9') targetRatio = 16 / 9;
+
+      // Recorte centrado + Zoom
+      const zoom = Math.max(1, Number(ed.zoom) || 1);
+      let cropW = iw;
+      let cropH = ih;
+      if (iw / ih > targetRatio) {
+        cropW = ih * targetRatio;
+      } else {
+        cropH = iw / targetRatio;
+      }
+      cropW = cropW / zoom;
+      cropH = cropH / zoom;
+      const sx = (iw - cropW) / 2;
+      const sy = (ih - cropH) / 2;
+
+      // Redimensionar respetando tamaño máximo elegido
+      const maxW = Number(ed.maxWidth) || 900;
+      let outW = Math.round(cropW);
+      let outH = Math.round(cropH);
+      if (outW > maxW) {
+        outH = Math.round((outH * maxW) / outW);
+        outW = maxW;
+      }
+      if (outH > maxW * 1.5) {
+        const capH = Math.round(maxW * 1.5);
+        outW = Math.round((outW * capH) / outH);
+        outH = capH;
+      }
+
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.max(1, outW);
+      canvas.height = Math.max(1, outH);
+      const ctx = canvas.getContext('2d');
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      const br = Number(ed.brightness) || 100;
+      const ct = Number(ed.contrast) || 100;
+      ctx.filter = `brightness(${br}%) contrast(${ct}%)`;
+      ctx.drawImage(img, sx, sy, cropW, cropH, 0, 0, canvas.width, canvas.height);
+
+      const q = Math.min(0.95, Math.max(0.45, Number(ed.quality) || 0.82));
+      let dataUrl = canvas.toDataURL('image/webp', q);
+      if (!dataUrl || !dataUrl.startsWith('data:image/webp')) {
+        dataUrl = canvas.toDataURL('image/jpeg', q);
+      }
+
+      const bytes = Math.round((dataUrl.length * 3) / 4);
+      ed.previewDataUrl = dataUrl;
+      ed.sizeKB = Math.max(1, Math.round(bytes / 1024));
+      ed.dims = `${canvas.width} × ${canvas.height} px`;
+
+      // Actualizar vista previa en vivo sin perder el foco de los sliders
+      const imgEl = document.getElementById('photo-editor-preview-img');
+      const infoEl = document.getElementById('photo-editor-meta-info');
+      if (imgEl) imgEl.src = dataUrl;
+      if (infoEl) infoEl.textContent = `${ed.dims} • ${ed.sizeKB} KB (WebP optimizado)`;
+      resolve(dataUrl);
+    };
+    img.onerror = () => resolve();
+    img.src = ed.rawDataUrl;
+  });
+}
+
+function openPhotoEditorFromFile(file, target, defaultAspect = 'original', defaultMaxWidth = 900) {
   if (!file) return;
-  showToast('⏳ Optimizando y subiendo foto con luz natural...');
-  try {
-    const dataUrl = await compressAndReadImage(file, 1080, 0.86);
-    AppState.salon.splashHero = dataUrl;
-    await DataStore.set('salon', 'config', AppState.salon);
-    if (!AppState.photoBank) AppState.photoBank = [];
-    if (!AppState.photoBank.find((p) => p.url === dataUrl)) {
-      AppState.photoBank.unshift({
-        id: 'photo_cover_' + Date.now(),
-        title: 'Foto Portada (' + new Date().toLocaleDateString('es-AR') + ')',
-        category: 'salon',
-        url: dataUrl
-      });
-      await DataStore.set('photos', 'items', AppState.photoBank);
-    }
-    showToast('📸 ¡Foto de portada actualizada con tu foto propia!');
+  const reader = new FileReader();
+  reader.onload = async (ev) => {
+    AppState.photoEditor = {
+      isOpen: true,
+      target,
+      rawDataUrl: ev.target.result,
+      title: file.name ? file.name.replace(/\.[^/.]+$/, '') : 'Foto Optimizada',
+      aspect: defaultAspect,
+      maxWidth: defaultMaxWidth,
+      quality: 0.82,
+      zoom: 1,
+      brightness: 100,
+      contrast: 100,
+      previewDataUrl: '',
+      sizeKB: 0,
+      dims: 'Procesando...'
+    };
+    await processPhotoEditorCanvas();
     renderApp();
-  } catch (err) {
-    console.error(err);
-    showToast('⚠️ No se pudo procesar la foto');
+  };
+  reader.readAsDataURL(file);
+}
+
+window.updatePhotoEditor = async (field, value) => {
+  if (!AppState.photoEditor) return;
+  AppState.photoEditor[field] = value;
+  await processPhotoEditorCanvas();
+  // Si cambió botón de aspecto o tamaño, re-renderizar para marcar botón activo
+  if (field === 'aspect' || field === 'maxWidth') {
+    renderApp();
+  } else {
+    const valLabel = document.getElementById(`photo-ed-val-${field}`);
+    if (valLabel) {
+      if (field === 'quality') valLabel.textContent = `${Math.round(Number(value) * 100)}%`;
+      else if (field === 'zoom') valLabel.textContent = `${Number(value).toFixed(1)}x`;
+      else valLabel.textContent = `${value}%`;
+    }
   }
 };
 
-window.handleUploadBannerPhoto = async (e) => {
+window.closePhotoEditor = () => {
+  AppState.photoEditor.isOpen = false;
+  renderApp();
+};
+
+window.applyPhotoEditor = async () => {
+  const ed = AppState.photoEditor;
+  if (!ed || !ed.previewDataUrl) return;
+
+  const dataUrl = ed.previewDataUrl;
+  const target = ed.target;
+  ed.isOpen = false;
+
+  if (target === 'splash') {
+    AppState.salon.splashHero = dataUrl;
+    AppState.salon.isDemo = false;
+    await DataStore.set('salon', 'config', AppState.salon);
+    const newPhoto = {
+      id: 'photo_cover_' + Date.now(),
+      title: 'Portada (' + new Date().toLocaleDateString('es-AR') + ')',
+      category: 'Portada',
+      url: dataUrl
+    };
+    if (!AppState.photoBank) AppState.photoBank = [];
+    AppState.photoBank.unshift(newPhoto);
+    await DataStore.set('photoBank', newPhoto.id, newPhoto);
+    showToast(`📸 Portada guardada (${ed.sizeKB} KB optimizada)`);
+  } else if (target === 'banner') {
+    AppState.salon.bannerImage = dataUrl;
+    AppState.salon.isDemo = false;
+    await DataStore.set('salon', 'config', AppState.salon);
+    showToast(`📸 Banner guardado (${ed.sizeKB} KB optimizado)`);
+  } else if (target === 'service') {
+    const hiddenInput = document.getElementById('srv-image-input');
+    if (hiddenInput) hiddenInput.value = dataUrl;
+    const previewImg = document.getElementById('srv-img-preview');
+    if (previewImg) previewImg.src = dataUrl;
+    AppState.tempServicePhoto = dataUrl;
+    showToast(`📸 Foto del servicio lista (${ed.sizeKB} KB)`);
+  } else if (target === 'photobank') {
+    const newPhoto = {
+      id: 'pb_' + Date.now(),
+      title: ed.title || 'Foto del Salón',
+      category: 'Salón',
+      url: dataUrl
+    };
+    if (!AppState.photoBank) AppState.photoBank = [];
+    AppState.photoBank.unshift(newPhoto);
+    await DataStore.set('photoBank', newPhoto.id, newPhoto);
+    showToast(`🏛️ Foto guardada en Banco (${ed.sizeKB} KB)`);
+  }
+
+  renderApp();
+};
+
+function renderPhotoEditorModal() {
+  const ed = AppState.photoEditor;
+  if (!ed || !ed.isOpen) return '';
+
+  return `
+    <div style="position: fixed; inset: 0; z-index: 9999; background: rgba(0,0,0,0.72); backdrop-filter: blur(6px); display: flex; align-items: center; justify-content: center; padding: 14px; overflow-y: auto;">
+      <div class="form-card gold-card" style="width: 100%; max-width: 420px; max-height: 92vh; overflow-y: auto; padding: 16px; background: var(--card-bg, #fff);">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+          <div>
+            <h3 style="margin: 0; font-size: 15px;">🎨 Editor & Optimizador de Fotos</h3>
+            <p id="photo-editor-meta-info" style="font-size: 11px; color: #16a34a; font-weight: 700; margin: 2px 0 0;">
+              ${ed.dims} • ${ed.sizeKB} KB (WebP optimizado)
+            </p>
+          </div>
+          <button type="button" style="background: none; border: none; font-size: 20px; cursor: pointer; color: var(--text-muted);" onclick="window.closePhotoEditor()">✕</button>
+        </div>
+
+        <div style="background: #111; border-radius: 12px; overflow: hidden; display: flex; align-items: center; justify-content: center; min-height: 180px; max-height: 240px; margin-bottom: 12px; border: 1px solid var(--gold-line);">
+          <img id="photo-editor-preview-img" src="${ed.previewDataUrl}" style="max-width: 100%; max-height: 240px; object-fit: contain; display: block;" alt="Vista previa" />
+        </div>
+
+        <!-- Formato / Recorte -->
+        <div style="margin-bottom: 10px;">
+          <label style="font-size: 11px; font-weight: 800; color: var(--text-muted); text-transform: uppercase; display: block; margin-bottom: 5px;">✂️ Encuadre / Recorte</label>
+          <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px;">
+            ${[
+              { id: 'original', label: 'Original' },
+              { id: '1:1', label: '1:1 Cuadr.' },
+              { id: '4:5', label: '4:5 Portada' },
+              { id: '16:9', label: '16:9 Banner' }
+            ]
+              .map(
+                (opt) => `
+              <button type="button" onclick="window.updatePhotoEditor('aspect', '${opt.id}')" style="padding: 6px 4px; font-size: 10.5px; font-weight: 700; border-radius: 8px; border: 1.5px solid ${ed.aspect === opt.id ? 'var(--gold-primary)' : 'rgba(0,0,0,0.1)'}; background: ${ed.aspect === opt.id ? 'var(--gold-primary)' : 'transparent'}; color: ${ed.aspect === opt.id ? '#fff' : 'var(--text-main)'}; cursor: pointer;">
+                ${opt.label}
+              </button>
+            `
+              )
+              .join('')}
+          </div>
+        </div>
+
+        <!-- Tamaño / Resolución máxima -->
+        <div style="margin-bottom: 10px;">
+          <label style="font-size: 11px; font-weight: 800; color: var(--text-muted); text-transform: uppercase; display: block; margin-bottom: 5px;">📐 Tamaño Máximo (Velocidad de Carga)</label>
+          <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px;">
+            ${[
+              { val: 600, label: '600px Liviana' },
+              { val: 900, label: '900px Óptima' },
+              { val: 1280, label: '1280px HD' }
+            ]
+              .map(
+                (opt) => `
+              <button type="button" onclick="window.updatePhotoEditor('maxWidth', ${opt.val})" style="padding: 6px 4px; font-size: 10.5px; font-weight: 700; border-radius: 8px; border: 1.5px solid ${Number(ed.maxWidth) === opt.val ? 'var(--gold-primary)' : 'rgba(0,0,0,0.1)'}; background: ${Number(ed.maxWidth) === opt.val ? 'var(--gold-primary)' : 'transparent'}; color: ${Number(ed.maxWidth) === opt.val ? '#fff' : 'var(--text-main)'}; cursor: pointer;">
+                ${opt.label}
+              </button>
+            `
+              )
+              .join('')}
+          </div>
+        </div>
+
+        <!-- Sliders: Calidad, Zoom, Brillo, Contraste -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px;">
+          <div>
+            <div style="display: flex; justify-content: space-between; font-size: 11px; font-weight: 700;">
+              <span>⚡ Calidad</span>
+              <span id="photo-ed-val-quality">${Math.round(ed.quality * 100)}%</span>
+            </div>
+            <input type="range" min="0.5" max="0.95" step="0.05" value="${ed.quality}" oninput="window.updatePhotoEditor('quality', parseFloat(this.value))" style="width: 100%;" />
+          </div>
+          <div>
+            <div style="display: flex; justify-content: space-between; font-size: 11px; font-weight: 700;">
+              <span>🔍 Zoom</span>
+              <span id="photo-ed-val-zoom">${Number(ed.zoom).toFixed(1)}x</span>
+            </div>
+            <input type="range" min="1" max="2" step="0.1" value="${ed.zoom}" oninput="window.updatePhotoEditor('zoom', parseFloat(this.value))" style="width: 100%;" />
+          </div>
+          <div>
+            <div style="display: flex; justify-content: space-between; font-size: 11px; font-weight: 700;">
+              <span>☀️ Brillo</span>
+              <span id="photo-ed-val-brightness">${ed.brightness}%</span>
+            </div>
+            <input type="range" min="80" max="130" step="2" value="${ed.brightness}" oninput="window.updatePhotoEditor('brightness', parseInt(this.value, 10))" style="width: 100%;" />
+          </div>
+          <div>
+            <div style="display: flex; justify-content: space-between; font-size: 11px; font-weight: 700;">
+              <span>🌗 Contraste</span>
+              <span id="photo-ed-val-contrast">${ed.contrast}%</span>
+            </div>
+            <input type="range" min="80" max="130" step="2" value="${ed.contrast}" oninput="window.updatePhotoEditor('contrast', parseInt(this.value, 10))" style="width: 100%;" />
+          </div>
+        </div>
+
+        <div style="display: flex; gap: 8px;">
+          <button type="button" class="btn-primary-action btn-gold-shimmer" style="flex: 1; padding: 11px; font-size: 12.5px;" onclick="window.applyPhotoEditor()">
+            💾 Aplicar y Guardar Foto
+          </button>
+          <button type="button" class="btn-secondary-action" style="padding: 11px 14px; font-size: 12px;" onclick="window.closePhotoEditor()">
+            Cancelar
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+window.handleUploadSplashPhoto = (e) => {
   const file = e.target.files && e.target.files[0];
   if (!file) return;
-  showToast('⏳ Optimizando foto del banner...');
-  try {
-    const dataUrl = await compressAndReadImage(file, 800, 0.86);
-    AppState.salon.bannerImage = dataUrl;
-    await DataStore.set('salon', 'config', AppState.salon);
-    showToast('📸 ¡Foto de banner actualizada desde tu celular!');
-    renderApp();
-  } catch (err) {
-    console.error(err);
-    showToast('⚠️ No se pudo procesar la foto');
-  }
+  openPhotoEditorFromFile(file, 'splash', '4:5', 900);
+  e.target.value = '';
+};
+
+window.handleUploadBannerPhoto = (e) => {
+  const file = e.target.files && e.target.files[0];
+  if (!file) return;
+  openPhotoEditorFromFile(file, 'banner', '16:9', 900);
+  e.target.value = '';
 };
 
 window.handleSaveSplashContent = async (e) => {
@@ -3368,6 +3883,7 @@ window.handleSaveSplashContent = async (e) => {
   AppState.salon.splashTitle = document.getElementById('splash-title-input')?.value.trim();
   AppState.salon.splashSubtitle = document.getElementById('splash-sub-input')?.value.trim();
   AppState.salon.splashHero = document.getElementById('splash-hero-input')?.value.trim() || AppState.salon.splashHero;
+  AppState.salon.isDemo = false;
   await DataStore.set('salon', 'config', AppState.salon);
   showToast('✅ Textos y foto de portada guardados');
   renderApp();
@@ -3379,6 +3895,7 @@ window.handleSaveBannerContent = async (e) => {
   AppState.salon.bannerTitle = document.getElementById('banner-title-input')?.value.trim();
   AppState.salon.bannerSubtitle = document.getElementById('banner-subtitle-input')?.value.trim();
   AppState.salon.bannerImage = document.getElementById('banner-img-input')?.value.trim() || AppState.salon.bannerImage;
+  AppState.salon.isDemo = false;
   await DataStore.set('salon', 'config', AppState.salon);
   showToast('✅ Banner promocional guardado');
   renderApp();
@@ -4542,36 +5059,108 @@ function renderApp() {
 
   const toastHtml = AppState.toastMessage ? `<div class="toast-msg">${AppState.toastMessage}</div>` : '';
   const successModalHtml = AppState.isBookingSuccessModalOpen ? renderBookingSuccessModal() : '';
+  const photoEditorHtml = AppState.photoEditor && AppState.photoEditor.isOpen ? renderPhotoEditorModal() : '';
 
   root.innerHTML = `
     ${screenContent}
     ${bottomNavHtml}
     ${toastHtml}
     ${successModalHtml}
+    ${photoEditorHtml}
   `;
 }
 window.renderApp = renderApp;
 
 // ============================================================================
-// INICIALIZACIÓN
+// INICIALIZACIÓN ULTRARRÁPIDA (RENDER INSTANTÁNEO + SYNC PARALELO FIRESTORE)
 // ============================================================================
-async function startApp() {
-  try {
-    await initFirebase();
-  } catch(e) {
-    console.warn('Firebase init fallback:', e);
+function hydrateFromLocalCacheSync() {
+  const localSalon = DataStore.getLocal('salon', 'config');
+  if (localSalon && !localSalon.isDemo) {
+    AppState.salon = { ...AppState.salon, ...localSalon, slug: getActiveSalonId() };
+  } else {
+    AppState.salon = {
+      ...AppState.salon,
+      slug: getActiveSalonId(),
+      name: localSalon?.name || 'Maison de Beauté',
+      tagline: localSalon?.tagline || 'Rituels de beauté exclusifs • Soins signature sur rendez-vous',
+      splashTitle: localSalon?.splashTitle || "L'Art de la Beauté,",
+      splashSubtitle: localSalon?.splashSubtitle || 'Uñas & Peluquería de Autor',
+      themeColor: localSalon?.themeColor || 'champagne',
+      splashHero: localSalon?.splashHero || './assets/splash-hero.jpg',
+      isDemo: true
+    };
   }
 
-  try {
-    AppState.subscription = await TenantManager.checkSubscription();
+  document.title = `${AppState.salon.name || 'ARAPY Estética'} — Turnos Online`;
+  applyTheme(AppState.salon.themeColor || 'champagne');
 
-    const savedSalon = await DataStore.get('salon', 'config');
+  const localCats = DataStore.getAllLocal('categories');
+  const localSrvs = DataStore.getAllLocal('services');
+  const localAddons = DataStore.getAllLocal('addons');
+  AppState.categories = localCats.length > 0 ? localCats : [...DEMO_SHOWCASE.categories];
+  AppState.services = localSrvs.length > 0 ? localSrvs : [...DEMO_SHOWCASE.services];
+  AppState.addons = localAddons.length > 0 ? localAddons : [...DEMO_SHOWCASE.addons];
+  AppState.appointments = DataStore.getAllLocal('appointments');
+  AppState.clients = DataStore.getAllLocal('clients');
+  AppState.finances = DataStore.getAllLocal('finances');
+  AppState.photoBank = DataStore.getAllLocal('photoBank');
+  AppState.blockedSlots = DataStore.getAllLocal('blockedSlots');
+  const localInspo = DataStore.getAllLocal('inspo');
+  if (localInspo.length > 0) AppState.inspo = localInspo;
+
+  const upcomingDays = getUpcomingDays(10);
+  if (!AppState.bookingDate && upcomingDays.length > 0) {
+    AppState.bookingDate = upcomingDays[0].dateStr;
+  }
+  if (!AppState.agendaSelectedDate) {
+    AppState.agendaSelectedDate = getTodayDateStr();
+  }
+}
+
+async function startApp() {
+  // 1. Pintar la pantalla en <50ms desde caché local para carga instantánea en celular
+  try {
+    hydrateFromLocalCacheSync();
+    renderApp();
+  } catch (err) {
+    console.warn('Local cache hydration fallback:', err);
+  }
+
+  // 2. Conectar a Firebase Arapy Soluciones y sincronizar TODAS las colecciones en paralelo
+  try {
+    await initFirebase();
+
+    const [
+      subscription,
+      savedSalon,
+      categories,
+      services,
+      addons,
+      appointments,
+      clients,
+      finances,
+      photoBank,
+      blockedSlots,
+      savedInspo
+    ] = await Promise.all([
+      TenantManager.checkSubscription(),
+      DataStore.get('salon', 'config'),
+      DataStore.getAll('categories'),
+      DataStore.getAll('services'),
+      DataStore.getAll('addons'),
+      DataStore.getAll('appointments'),
+      DataStore.getAll('clients'),
+      DataStore.getAll('finances'),
+      DataStore.getAll('photoBank'),
+      DataStore.getAll('blockedSlots'),
+      DataStore.getAll('inspo')
+    ]);
+
+    AppState.subscription = subscription;
+
     if (savedSalon && !savedSalon.isDemo) {
-      AppState.salon = {
-        ...AppState.salon,
-        ...savedSalon,
-        slug: getActiveSalonId()
-      };
+      AppState.salon = { ...AppState.salon, ...savedSalon, slug: getActiveSalonId() };
     } else {
       AppState.salon = {
         ...AppState.salon,
@@ -4584,52 +5173,34 @@ async function startApp() {
         splashHero: savedSalon?.splashHero || './assets/splash-hero.jpg',
         isDemo: true
       };
-      await DataStore.set('salon', 'config', AppState.salon);
+      DataStore.set('salon', 'config', AppState.salon);
     }
 
     document.title = `${AppState.salon.name || 'ARAPY Estética'} — Turnos Online`;
+    applyTheme(AppState.salon.themeColor || 'champagne');
     TenantManager.syncTenantMetadata(AppState.salon);
 
-    applyTheme(AppState.salon.themeColor || 'champagne');
-
-    AppState.categories = await DataStore.getAll('categories');
-    AppState.services = await DataStore.getAll('services');
-    AppState.addons = await DataStore.getAll('addons');
-
-    if (AppState.categories.length === 0 && AppState.services.length === 0) {
-      for (const c of DEMO_SHOWCASE.categories) {
-        await DataStore.set('categories', c.id, c);
-      }
-      for (const s of DEMO_SHOWCASE.services) {
-        await DataStore.set('services', s.id, s);
-      }
-      for (const a of DEMO_SHOWCASE.addons) {
-        await DataStore.set('addons', a.id, a);
-      }
+    if (categories.length === 0 && services.length === 0) {
       AppState.categories = [...DEMO_SHOWCASE.categories];
       AppState.services = [...DEMO_SHOWCASE.services];
       AppState.addons = [...DEMO_SHOWCASE.addons];
+      Promise.all([
+        ...DEMO_SHOWCASE.categories.map((c) => DataStore.set('categories', c.id, c)),
+        ...DEMO_SHOWCASE.services.map((s) => DataStore.set('services', s.id, s)),
+        ...DEMO_SHOWCASE.addons.map((a) => DataStore.set('addons', a.id, a))
+      ]);
+    } else {
+      AppState.categories = categories;
+      AppState.services = services;
+      AppState.addons = addons.length > 0 ? addons : [...DEMO_SHOWCASE.addons];
     }
 
-    if (!AppState.addons || AppState.addons.length === 0) {
-      const DEFAULT_ADDONS = [
-        { id: 'addon_1', name: 'Retiro de Esmaltado Anterior', price: 1500, duration: 15, active: true },
-        { id: 'addon_2', name: 'Nail Art / Francesitas por uña', price: 2000, duration: 15, active: true },
-        { id: 'addon_3', name: 'Nutrición Capilar Exprés / Ampolla', price: 3500, duration: 20, active: true },
-        { id: 'addon_4', name: 'Exfoliación & Masaje de Manos', price: 2500, duration: 15, active: true }
-      ];
-      for (const addon of DEFAULT_ADDONS) {
-        await DataStore.set('addons', addon.id, addon);
-      }
-      AppState.addons = DEFAULT_ADDONS;
-    }
+    AppState.appointments = appointments;
+    AppState.clients = clients;
+    AppState.finances = finances;
+    AppState.blockedSlots = blockedSlots;
 
-    AppState.appointments = await DataStore.getAll('appointments');
-    AppState.clients = await DataStore.getAll('clients');
-    AppState.finances = await DataStore.getAll('finances');
-    AppState.photoBank = await DataStore.getAll('photoBank');
-
-    if (!AppState.photoBank || AppState.photoBank.length === 0) {
+    if (!photoBank || photoBank.length === 0) {
       const DEFAULT_PHOTO_BANK = [
         { id: 'pb_1', title: 'Modelo Francesa Luminous', url: './assets/splash-hero.jpg', category: 'Portada' },
         { id: 'pb_2', title: 'Uñas Studio Kapping', url: './assets/studio-nails.jpg', category: 'Uñas' },
@@ -4639,30 +5210,20 @@ async function startApp() {
         { id: 'pb_6', title: 'Corte Femenino de Autor', url: './assets/service-hair-cut.jpg', category: 'Peluquería' },
         { id: 'pb_7', title: 'Salón Lounge Interior', url: './assets/studio-interior.jpg', category: 'Salón' }
       ];
-      for (const p of DEFAULT_PHOTO_BANK) {
-        await DataStore.set('photoBank', p.id, p);
-      }
       AppState.photoBank = DEFAULT_PHOTO_BANK;
-    }
-    AppState.blockedSlots = await DataStore.getAll('blockedSlots');
-
-    const upcomingDays = getUpcomingDays(10);
-    if (!AppState.bookingDate && upcomingDays.length > 0) {
-      AppState.bookingDate = upcomingDays[0].dateStr;
-    }
-    if (!AppState.agendaSelectedDate) {
-      AppState.agendaSelectedDate = getTodayDateStr();
+      Promise.all(DEFAULT_PHOTO_BANK.map((p) => DataStore.set('photoBank', p.id, p)));
+    } else {
+      AppState.photoBank = photoBank;
     }
 
-    const savedInspo = await DataStore.getAll('inspo');
     if (savedInspo && savedInspo.length > 0) {
       AppState.inspo = savedInspo;
     }
   } catch (err) {
-    console.error('Initialization error, fallback to demo state:', err);
+    console.error('Initialization sync error:', err);
   }
 
-  // Renderizar la app inmediatamente
+  // 3. Actualizar UI con datos frescos de Firestore
   renderApp();
 }
 
