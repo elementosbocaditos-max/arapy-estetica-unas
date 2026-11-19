@@ -1585,7 +1585,7 @@ function renderPanel() {
             🔄 Sincronizar Consola
           </button>
           <button type="button" class="btn-secondary-action" style="padding: 8px 8px; font-size: 11px;" onclick="window.handleForceUpdateApp()">
-            ⚡ Actualizar App (v4.3)
+            ⚡ Actualizar App (v4.4)
           </button>
         </div>
       </div>
@@ -5101,10 +5101,6 @@ function renderApp() {
       <button type="button" class="nav-tab-btn ${AppState.activeScreen === 'booking' ? 'active' : ''}" onclick="navigateTo('booking')">
         ${Icons.calendar}
         <span>Mi Turno</span>
-      </button>
-      <button type="button" class="nav-tab-btn ${AppState.activeScreen === 'panel' ? 'active' : ''}" onclick="navigateTo('panel')">
-        ${Icons.lock}
-        <span>Panel</span>
       </button>
     </nav>
   `
