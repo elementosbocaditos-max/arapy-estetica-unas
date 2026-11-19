@@ -1580,6 +1580,14 @@ function renderPanel() {
             ✏️ Editar
           </button>
         </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 7px;">
+          <button type="button" class="btn-secondary-action" style="padding: 8px 8px; font-size: 11px;" onclick="window.handleSyncMasterConsole()">
+            🔄 Sincronizar Consola
+          </button>
+          <button type="button" class="btn-secondary-action" style="padding: 8px 8px; font-size: 11px;" onclick="window.handleForceUpdateApp()">
+            ⚡ Actualizar App (v4.2)
+          </button>
+        </div>
       </div>
 
       <div style="padding: 0 18px 10px;">
@@ -2861,6 +2869,51 @@ window.openSalonLinkEditor = () => {
       input.select();
     }
   }, 80);
+};
+
+window.handleSyncMasterConsole = async () => {
+  const slug = getActiveSalonId();
+  if (!slug || slug === ARAPY_CONFIG.defaultSalonId) {
+    showToast('⚠️ Primero editá el nombre del link (ej: estetic-y-unas) para sincronizar con Consola Master');
+    window.openSalonLinkEditor();
+    return;
+  }
+
+  showToast('🔄 Sincronizando con Consola Master Arapy...');
+  try {
+    await initFirebase();
+    await DataStore.set('salon', 'config', { ...AppState.salon, slug, isDemo: false });
+    const res = await TenantManager.syncTenantMetadata({ ...AppState.salon, slug }, slug);
+    if (res && res.ok && res.syncedToCloud) {
+      showToast(`✅ ¡"${slug}" sincronizado en Consola Master Arapy!`);
+    } else if (res && res.error) {
+      showToast(`⚠️ Error Firebase: ${res.error}`);
+    } else {
+      showToast('⚠️ No se detectó conexión con Firebase. Revisá tu internet.');
+    }
+    renderApp();
+  } catch (err) {
+    showToast(`⚠️ Error al sincronizar: ${err?.message || err}`);
+  }
+};
+
+window.handleForceUpdateApp = async () => {
+  showToast('⚡ Buscando última versión y limpiando caché...');
+  try {
+    if ('serviceWorker' in navigator) {
+      const regs = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(regs.map((r) => r.unregister()));
+    }
+    if ('caches' in window) {
+      const keys = await caches.keys();
+      await Promise.all(keys.map((k) => caches.delete(k)));
+    }
+  } catch (err) {
+    console.warn('Error limpiando caché:', err);
+  }
+  const url = new URL(window.location.href);
+  url.searchParams.set('reload', Date.now().toString());
+  window.location.replace(url.toString());
 };
 
 window.handleSaveStoreGeneral = async (e) => {

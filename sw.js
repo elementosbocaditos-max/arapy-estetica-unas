@@ -1,4 +1,4 @@
-const CACHE_NAME = 'beauty-studio-v4.1';
+const CACHE_NAME = 'beauty-studio-v4.2';
 const ASSETS = [
   './',
   './index.html',

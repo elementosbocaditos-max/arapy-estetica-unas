@@ -523,11 +523,13 @@ export const TenantManager = {
             { merge: true }
           );
         }
+        return { ok: true, slug: salonId, syncedToCloud: true, record: reg[salonId] };
       } catch (err) {
         console.warn('Aviso sincronizando con tiendas_registradas (Consola Master):', err);
+        return { ok: false, slug: salonId, syncedToCloud: false, error: err?.message || String(err) };
       }
     }
-    return reg[salonId];
+    return { ok: true, slug: salonId, syncedToCloud: false, record: reg[salonId] };
   },
 
   // Evalúa la suscripción en tiempo real desde tiendas_registradas/{salonId}
